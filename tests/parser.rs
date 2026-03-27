@@ -1,4 +1,4 @@
-use spin_up::ast::{Item, TypeExpr};
+use spin_up::ast::{Expr, Item, TypeExpr};
 use spin_up::parser::parse;
 
 #[test]
@@ -44,6 +44,7 @@ fn test_parse_empty_resource() {
             assert_eq!(r.name, "Postgres");
             assert!(r.fields.is_empty());
         }
+        other => panic!("expected ResourceDef, got {other:?}"),
     }
 }
 
@@ -57,6 +58,7 @@ fn test_parse_resource_with_simple_field() {
             assert_eq!(r.fields[0].name, "host");
             assert!(matches!(&r.fields[0].ty, TypeExpr::Named(n) if n == "String"));
         }
+        other => panic!("expected ResourceDef, got {other:?}"),
     }
 }
 
@@ -75,6 +77,7 @@ fn test_parse_resource_with_qualified_type() {
                 other => panic!("expected Path, got {other:?}"),
             }
         }
+        other => panic!("expected ResourceDef, got {other:?}"),
     }
 }
 
@@ -93,6 +96,7 @@ fn test_parse_resource_with_generic_type() {
                 other => panic!("expected Generic, got {other:?}"),
             }
         }
+        other => panic!("expected ResourceDef, got {other:?}"),
     }
 }
 
@@ -104,6 +108,7 @@ fn test_parse_resource_with_self_path() {
         Item::ResourceDef(r) => {
             assert!(matches!(&r.fields[0].ty, TypeExpr::SelfPath(n) if n == "Tls"));
         }
+        other => panic!("expected ResourceDef, got {other:?}"),
     }
 }
 
@@ -115,6 +120,7 @@ fn test_parse_resource_trailing_comma_optional() {
         Item::ResourceDef(r) => {
             assert_eq!(r.fields.len(), 1);
         }
+        other => panic!("expected ResourceDef, got {other:?}"),
     }
 }
 
@@ -133,6 +139,7 @@ fn test_parse_multiple_fields() {
             assert_eq!(r.fields[1].name, "host");
             assert_eq!(r.fields[2].name, "port");
         }
+        other => panic!("expected ResourceDef, got {other:?}"),
     }
 }
 
@@ -151,5 +158,58 @@ resource Postgres {
         Item::ResourceDef(r) => {
             assert_eq!(r.name, "Postgres");
         }
+        other => panic!("expected ResourceDef, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_supplies_declaration() {
+    let input = r#"import postgres
+
+supplies postgres::Postgres {
+  host = "localhost",
+  port = 5432,
+}"#;
+    let module = parse(input).unwrap();
+    assert_eq!(module.items.len(), 1);
+    match &module.items[0] {
+        Item::SuppliesDef(s) => {
+            assert_eq!(s.resource_path.module, "postgres");
+            assert_eq!(s.resource_path.name, "Postgres");
+            assert_eq!(s.field_assignments.len(), 2);
+            assert_eq!(s.field_assignments[0].name, "host");
+            assert_eq!(s.field_assignments[1].name, "port");
+        }
+        other => panic!("expected SuppliesDef, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_supplies_string_value() {
+    let input = r#"supplies postgres::Postgres {
+  host = "localhost",
+}"#;
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::SuppliesDef(s) => match &s.field_assignments[0].value {
+            Expr::StringLit(v) => assert_eq!(v, "localhost"),
+            other => panic!("expected StringLit, got {other:?}"),
+        },
+        other => panic!("expected SuppliesDef, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_supplies_number_value() {
+    let input = r#"supplies postgres::Postgres {
+  port = 5432,
+}"#;
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::SuppliesDef(s) => match &s.field_assignments[0].value {
+            Expr::Number(v) => assert_eq!(v, "5432"),
+            other => panic!("expected Number, got {other:?}"),
+        },
+        other => panic!("expected SuppliesDef, got {other:?}"),
     }
 }

@@ -67,10 +67,13 @@ impl Parser {
                 Token::Resource => {
                     items.push(Item::ResourceDef(self.parse_resource_def()?));
                 }
+                Token::Supplies => {
+                    items.push(Item::SuppliesDef(self.parse_supplies_def()?));
+                }
                 other => {
                     let span = &self.peek().unwrap().span;
                     return Err(ParseError::Expected {
-                        expected: "import or resource".to_string(),
+                        expected: "import, resource, or supplies".to_string(),
                         found: format!("{other:?}"),
                         pos: span.start,
                     });
@@ -164,6 +167,74 @@ impl Parser {
         }
 
         Ok(crate::ast::TypeExpr::Named(name))
+    }
+
+    fn parse_supplies_def(&mut self) -> Result<crate::ast::SuppliesDef, ParseError> {
+        let start = self.advance().unwrap().span.start; // consume 'supplies'
+        let (module, _) = self.expect_ident()?;
+        self.expect_token(Token::PathSep)?;
+        let (name, _) = self.expect_ident()?;
+        let resource_path = crate::ast::QualifiedPath { module, name };
+
+        self.expect_token(Token::LBrace)?;
+
+        let mut field_assignments = Vec::new();
+        while !self.check(&Token::RBrace) {
+            field_assignments.push(self.parse_field_assignment()?);
+            if self.check(&Token::Comma) {
+                self.advance();
+            }
+        }
+
+        let end = self.expect_token(Token::RBrace)?;
+
+        Ok(crate::ast::SuppliesDef {
+            resource_path,
+            field_assignments,
+            span: start..end.end,
+        })
+    }
+
+    fn parse_field_assignment(&mut self) -> Result<crate::ast::FieldAssignment, ParseError> {
+        let (name, name_span) = self.expect_ident()?;
+        self.expect_token(Token::Eq)?;
+        let value = self.parse_expr()?;
+        let end = self.previous_span_end();
+
+        Ok(crate::ast::FieldAssignment {
+            name,
+            value,
+            span: name_span.start..end,
+        })
+    }
+
+    fn parse_expr(&mut self) -> Result<crate::ast::Expr, ParseError> {
+        match self.advance() {
+            Some(Spanned {
+                kind: Token::StringLit(s),
+                ..
+            }) => Ok(crate::ast::Expr::StringLit(s.clone())),
+            Some(Spanned {
+                kind: Token::Number(n),
+                ..
+            }) => Ok(crate::ast::Expr::Number(n.clone())),
+            Some(Spanned {
+                kind: Token::Ident(name),
+                ..
+            }) => match name.as_str() {
+                "true" => Ok(crate::ast::Expr::Bool(true)),
+                "false" => Ok(crate::ast::Expr::Bool(false)),
+                _ => Ok(crate::ast::Expr::Ident(name.clone())),
+            },
+            Some(Spanned { kind, span }) => Err(ParseError::Expected {
+                expected: "expression".to_string(),
+                found: format!("{kind:?}"),
+                pos: span.start,
+            }),
+            None => Err(ParseError::UnexpectedEof {
+                expected: "expression".to_string(),
+            }),
+        }
     }
 
     fn check(&self, expected: &Token) -> bool {

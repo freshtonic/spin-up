@@ -18,6 +18,7 @@ pub struct Import {
 #[derive(Debug, Clone)]
 pub enum Item {
     ResourceDef(ResourceDef),
+    SuppliesDef(SuppliesDef),
 }
 
 /// A resource definition: `resource Postgres { ... }`
@@ -34,6 +35,38 @@ pub struct Field {
     pub name: String,
     pub ty: TypeExpr,
     pub span: Range<usize>,
+}
+
+/// A supplies declaration: `supplies postgres::Postgres { ... }`
+#[derive(Debug, Clone)]
+pub struct SuppliesDef {
+    pub resource_path: QualifiedPath,
+    pub field_assignments: Vec<FieldAssignment>,
+    pub span: Range<usize>,
+}
+
+/// A qualified path: `module::Name`
+#[derive(Debug, Clone)]
+pub struct QualifiedPath {
+    pub module: String,
+    pub name: String,
+}
+
+/// A field assignment: `host = "localhost"`
+#[derive(Debug, Clone)]
+pub struct FieldAssignment {
+    pub name: String,
+    pub value: Expr,
+    pub span: Range<usize>,
+}
+
+/// An expression (values on the right-hand side of assignments)
+#[derive(Debug, Clone)]
+pub enum Expr {
+    StringLit(String),
+    Number(String),
+    Bool(bool),
+    Ident(String),
 }
 
 /// A type expression
