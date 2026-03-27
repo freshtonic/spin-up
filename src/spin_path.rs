@@ -8,6 +8,10 @@ pub enum SpinPathError {
     Empty,
     #[error("directory does not exist: {0}")]
     DirNotFound(PathBuf),
+    #[error("module not found: {0}")]
+    ModuleNotFound(String),
+    #[error("user-defined modules cannot use the 'spin-' prefix: {0}")]
+    ReservedPrefix(String),
 }
 
 #[derive(Debug)]
@@ -42,5 +46,21 @@ impl FromStr for SpinPath {
 impl SpinPath {
     pub fn dirs(&self) -> &[PathBuf] {
         &self.dirs
+    }
+
+    pub fn resolve(&self, module_name: &str) -> Result<PathBuf, SpinPathError> {
+        if module_name.starts_with("spin-") && !module_name.starts_with("spin-core") {
+            return Err(SpinPathError::ReservedPrefix(module_name.to_string()));
+        }
+
+        let filename = format!("{module_name}.spin");
+        for dir in &self.dirs {
+            let candidate = dir.join(&filename);
+            if candidate.is_file() {
+                return Ok(candidate);
+            }
+        }
+
+        Err(SpinPathError::ModuleNotFound(module_name.to_string()))
     }
 }
