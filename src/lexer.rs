@@ -14,6 +14,7 @@ pub enum Token {
     Fn,
     Map,
     Filter,
+    Self_,
 
     // Literals
     Ident(String),
@@ -136,6 +137,7 @@ pub fn lex(input: &str) -> Result<Vec<Spanned>, LexError> {
                     "fn" => Token::Fn,
                     "map" => Token::Map,
                     "filter" => Token::Filter,
+                    "Self" => Token::Self_,
                     _ => Token::Ident(value),
                 };
                 tokens.push(Spanned {
