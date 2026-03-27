@@ -1,0 +1,7 @@
+max_trees = 16
+root = "."
+
+# root = ""  # Base directory for the tree pool.
+# Relative paths are relative to the repo root.
+# Supports environment variables, e.g. "$HOME/trees".
+# Default: home directory (~/.tree-pool/)
