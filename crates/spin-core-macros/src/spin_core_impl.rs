@@ -1,7 +1,7 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use spin_up::ast;
-use spin_up::ast_normalize::{
+use spin_lang::ast;
+use spin_lang::ast_normalize::{
     NormalizedChoiceDef, NormalizedField, NormalizedItem, NormalizedRecordDef, NormalizedTypeExpr,
     NormalizedVariant,
 };
@@ -188,7 +188,7 @@ pub fn spin_core_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     // Get the .spin source
-    let source = match spin_up::builtins::get_module_source(&module_name) {
+    let source = match spin_lang::builtins::get_module_source(&module_name) {
         Some(s) => s,
         None => {
             return syn::Error::new(
@@ -200,7 +200,7 @@ pub fn spin_core_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     // Parse the .spin source
-    let module = match spin_up::parser::parse(source) {
+    let module = match spin_lang::parser::parse(source) {
         Ok(m) => m,
         Err(e) => {
             return syn::Error::new(
@@ -224,7 +224,7 @@ pub fn spin_core_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     // Normalize the .spin item
-    let spin_normalized = spin_up::ast_normalize::normalize_item(spin_item);
+    let spin_normalized = spin_lang::ast_normalize::normalize_item(spin_item);
 
     // Convert the Rust item to a NormalizedItem
     let rust_normalized = match &syn_item {
@@ -273,7 +273,7 @@ pub fn spin_core_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
 mod tests {
     use super::*;
     use quote::quote;
-    use spin_up::ast_normalize::NormalizedAttribute;
+    use spin_lang::ast_normalize::NormalizedAttribute;
 
     // --- Tests for parse_attr_args ---
 
@@ -524,8 +524,8 @@ mod tests {
 
     #[test]
     fn find_item_by_name_finds_record() {
-        let source = spin_up::builtins::get_module_source("spin-core-net").unwrap();
-        let module = spin_up::parser::parse(source).unwrap();
+        let source = spin_lang::builtins::get_module_source("spin-core-net").unwrap();
+        let module = spin_lang::parser::parse(source).unwrap();
         let item = find_item_by_name(&module.items, "IpAddrV4");
         assert!(item.is_some());
         assert!(matches!(item.unwrap(), ast::Item::RecordDef(r) if r.name == "IpAddrV4"));
@@ -533,8 +533,8 @@ mod tests {
 
     #[test]
     fn find_item_by_name_finds_choice() {
-        let source = spin_up::builtins::get_module_source("spin-core-net").unwrap();
-        let module = spin_up::parser::parse(source).unwrap();
+        let source = spin_lang::builtins::get_module_source("spin-core-net").unwrap();
+        let module = spin_lang::parser::parse(source).unwrap();
         let item = find_item_by_name(&module.items, "IpAddr");
         assert!(item.is_some());
         assert!(matches!(item.unwrap(), ast::Item::ChoiceDef(c) if c.name == "IpAddr"));
@@ -542,8 +542,8 @@ mod tests {
 
     #[test]
     fn find_item_by_name_returns_none_for_missing() {
-        let source = spin_up::builtins::get_module_source("spin-core-net").unwrap();
-        let module = spin_up::parser::parse(source).unwrap();
+        let source = spin_lang::builtins::get_module_source("spin-core-net").unwrap();
+        let module = spin_lang::parser::parse(source).unwrap();
         let item = find_item_by_name(&module.items, "NonExistent");
         assert!(item.is_none());
     }
@@ -562,10 +562,10 @@ mod tests {
         let rust_normalized = struct_to_normalized(&item).unwrap();
 
         // Build the spin side
-        let source = spin_up::builtins::get_module_source("spin-core-net").unwrap();
-        let module = spin_up::parser::parse(source).unwrap();
+        let source = spin_lang::builtins::get_module_source("spin-core-net").unwrap();
+        let module = spin_lang::parser::parse(source).unwrap();
         let spin_item = find_item_by_name(&module.items, "IpAddrV4").unwrap();
-        let spin_normalized = spin_up::ast_normalize::normalize_item(spin_item);
+        let spin_normalized = spin_lang::ast_normalize::normalize_item(spin_item);
 
         // Strip attributes and compare
         let rust_stripped = strip_attributes(&rust_normalized);
@@ -584,10 +584,10 @@ mod tests {
         .unwrap();
         let rust_normalized = enum_to_normalized(&item).unwrap();
 
-        let source = spin_up::builtins::get_module_source("spin-core-net").unwrap();
-        let module = spin_up::parser::parse(source).unwrap();
+        let source = spin_lang::builtins::get_module_source("spin-core-net").unwrap();
+        let module = spin_lang::parser::parse(source).unwrap();
         let spin_item = find_item_by_name(&module.items, "IpAddr").unwrap();
-        let spin_normalized = spin_up::ast_normalize::normalize_item(spin_item);
+        let spin_normalized = spin_lang::ast_normalize::normalize_item(spin_item);
 
         let rust_stripped = strip_attributes(&rust_normalized);
         let spin_stripped = strip_attributes(&spin_normalized);
@@ -606,10 +606,10 @@ mod tests {
         .unwrap();
         let rust_normalized = struct_to_normalized(&item).unwrap();
 
-        let source = spin_up::builtins::get_module_source("spin-core-net").unwrap();
-        let module = spin_up::parser::parse(source).unwrap();
+        let source = spin_lang::builtins::get_module_source("spin-core-net").unwrap();
+        let module = spin_lang::parser::parse(source).unwrap();
         let spin_item = find_item_by_name(&module.items, "IpAddrV4").unwrap();
-        let spin_normalized = spin_up::ast_normalize::normalize_item(spin_item);
+        let spin_normalized = spin_lang::ast_normalize::normalize_item(spin_item);
 
         let rust_stripped = strip_attributes(&rust_normalized);
         let spin_stripped = strip_attributes(&spin_normalized);

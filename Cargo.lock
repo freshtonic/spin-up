@@ -5194,8 +5194,15 @@ version = "0.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
- "spin-up",
+ "spin-lang",
  "syn",
+]
+
+[[package]]
+name = "spin-lang"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -5208,6 +5215,7 @@ dependencies = [
  "miette 7.6.0",
  "predicates",
  "release-plz",
+ "spin-lang",
  "tempfile",
  "thiserror 2.0.18",
 ]
