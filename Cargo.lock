@@ -5215,6 +5215,7 @@ dependencies = [
  "miette 7.6.0",
  "predicates",
  "release-plz",
+ "spin-core-macros",
  "spin-lang",
  "tempfile",
  "thiserror 2.0.18",
