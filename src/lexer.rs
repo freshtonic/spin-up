@@ -16,6 +16,26 @@ pub enum Token {
     Filter,
     Self_,
 
+    // Primitive type keywords
+    Bool,
+    U8,
+    U16,
+    U32,
+    U64,
+    U128,
+    I8,
+    I16,
+    I32,
+    I64,
+    I128,
+    F32,
+    F64,
+    Str,
+
+    // Type definition keywords
+    Record,
+    Choice,
+
     // Literals
     Ident(String),
     Number(String),
@@ -138,6 +158,22 @@ pub fn lex(input: &str) -> Result<Vec<Spanned>, LexError> {
                     "map" => Token::Map,
                     "filter" => Token::Filter,
                     "Self" => Token::Self_,
+                    "bool" => Token::Bool,
+                    "u8" => Token::U8,
+                    "u16" => Token::U16,
+                    "u32" => Token::U32,
+                    "u64" => Token::U64,
+                    "u128" => Token::U128,
+                    "i8" => Token::I8,
+                    "i16" => Token::I16,
+                    "i32" => Token::I32,
+                    "i64" => Token::I64,
+                    "i128" => Token::I128,
+                    "f32" => Token::F32,
+                    "f64" => Token::F64,
+                    "str" => Token::Str,
+                    "record" => Token::Record,
+                    "choice" => Token::Choice,
                     _ => Token::Ident(value),
                 };
                 tokens.push(Spanned {

@@ -85,3 +85,36 @@ fn test_token_spans() {
     assert_eq!(tokens[0].span, 0..6);
     assert_eq!(tokens[1].span, 7..15);
 }
+
+#[test]
+fn test_lex_primitive_type_keywords() {
+    let input = "bool u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 f32 f64 str";
+    let tokens = lex(input).unwrap();
+    let kinds: Vec<_> = tokens.iter().map(|t| &t.kind).collect();
+    assert_eq!(
+        kinds,
+        &[
+            &Token::Bool,
+            &Token::U8,
+            &Token::U16,
+            &Token::U32,
+            &Token::U64,
+            &Token::U128,
+            &Token::I8,
+            &Token::I16,
+            &Token::I32,
+            &Token::I64,
+            &Token::I128,
+            &Token::F32,
+            &Token::F64,
+            &Token::Str,
+        ]
+    );
+}
+
+#[test]
+fn test_lex_record_and_choice_keywords() {
+    let tokens = lex("record choice").unwrap();
+    let kinds: Vec<_> = tokens.iter().map(|t| &t.kind).collect();
+    assert_eq!(kinds, &[&Token::Record, &Token::Choice]);
+}
