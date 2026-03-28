@@ -1748,20 +1748,20 @@ git commit -m "feat: add parser for supplies declarations with field assignments
 
 ## What's Next (Future Phases)
 
-**Phase 2: Static Analysis**
+**Phase 2: spin-core Primitives**
+- `TcpPort` (dynamic port allocation)
+- `TempDir`, `FilePath`
+- `TlsKeyFile`, `TlsCertFile`
+
+**Phase 3: Static Analysis**
 - Dependency graph construction from parsed modules
 - Topological sort, cycle detection
 - Consumer/provider field matching and validation
 
-**Phase 3: Runtime**
+**Phase 4: Runtime**
 - Supervision tree (`spin plumbing:supervise`)
 - Unix socket IPC between CLI and supervisors
 - Process lifecycle management
-
-**Phase 4: spin-core Primitives**
-- `TcpPort` (dynamic port allocation)
-- `TempDir`, `FilePath`
-- `TlsKeyFile`, `TlsCertFile`
 
 **Phase 5: Language Completions**
 - String interpolation
