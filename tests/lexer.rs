@@ -163,3 +163,28 @@ fn test_lex_float_exponent() {
     assert_eq!(tokens[1].kind, Token::Number("2.5E-3".to_string()));
     assert_eq!(tokens[2].kind, Token::Number("1e5".to_string()));
 }
+
+#[test]
+fn test_lex_attribute() {
+    let tokens = lex("#[lang-item]").unwrap();
+    let kinds: Vec<_> = tokens.iter().map(|t| &t.kind).collect();
+    assert_eq!(kinds, &[&Token::HashBracket, &Token::Ident("lang-item".to_string()), &Token::RBracket]);
+}
+
+#[test]
+fn test_lex_attribute_before_choice() {
+    let tokens = lex("#[lang-item]\nchoice IpAddr {}").unwrap();
+    let kinds: Vec<_> = tokens.iter().map(|t| &t.kind).collect();
+    assert_eq!(
+        kinds,
+        &[
+            &Token::HashBracket,
+            &Token::Ident("lang-item".to_string()),
+            &Token::RBracket,
+            &Token::Choice,
+            &Token::Ident("IpAddr".to_string()),
+            &Token::LBrace,
+            &Token::RBrace,
+        ]
+    );
+}

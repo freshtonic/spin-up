@@ -41,6 +41,9 @@ pub enum Token {
     Number(String),
     StringLit(String),
 
+    // Attribute syntax
+    HashBracket, // #[
+
     // Punctuation
     LBrace,
     RBrace,
@@ -406,6 +409,14 @@ pub fn lex(input: &str) -> Result<Vec<Spanned>, LexError> {
                 tokens.push(Spanned {
                     kind: Token::Pipe,
                     span: pos..pos + 1,
+                });
+            }
+            '#' if matches!(chars.clone().nth(1), Some((_, '['))) => {
+                chars.next();
+                chars.next();
+                tokens.push(Spanned {
+                    kind: Token::HashBracket,
+                    span: pos..pos + 2,
                 });
             }
             _ => return Err(LexError::UnexpectedChar { ch, pos }),
