@@ -532,3 +532,100 @@ fn test_parse_choice_multi_field_variant() {
         other => panic!("expected ChoiceDef, got {other:?}"),
     }
 }
+
+// --- Primitive and compound type expression parsing (Task 8) ---
+
+#[test]
+fn test_parse_primitive_type_in_field() {
+    let input = "record Foo { x: u32, y: bool, z: str }";
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::RecordDef(r) => {
+            assert!(matches!(
+                &r.fields[0].ty,
+                TypeExpr::Primitive(PrimitiveType::U32)
+            ));
+            assert!(matches!(
+                &r.fields[1].ty,
+                TypeExpr::Primitive(PrimitiveType::Bool)
+            ));
+            assert!(matches!(
+                &r.fields[2].ty,
+                TypeExpr::Primitive(PrimitiveType::Str)
+            ));
+        }
+        other => panic!("expected RecordDef, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_array_type() {
+    let input = "record Foo { data: [u8; 4] }";
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::RecordDef(r) => match &r.fields[0].ty {
+            TypeExpr::Array { element, size } => {
+                assert!(matches!(
+                    element.as_ref(),
+                    TypeExpr::Primitive(PrimitiveType::U8)
+                ));
+                assert_eq!(*size, 4);
+            }
+            other => panic!("expected Array, got {other:?}"),
+        },
+        other => panic!("expected RecordDef, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_slice_type() {
+    let input = "record Foo { data: [u8] }";
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::RecordDef(r) => match &r.fields[0].ty {
+            TypeExpr::Slice(element) => {
+                assert!(matches!(
+                    element.as_ref(),
+                    TypeExpr::Primitive(PrimitiveType::U8)
+                ));
+            }
+            other => panic!("expected Slice, got {other:?}"),
+        },
+        other => panic!("expected RecordDef, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_tuple_type() {
+    let input = "record Foo { pair: (u32, str) }";
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::RecordDef(r) => match &r.fields[0].ty {
+            TypeExpr::Tuple(elements) => {
+                assert_eq!(elements.len(), 2);
+                assert!(matches!(
+                    &elements[0],
+                    TypeExpr::Primitive(PrimitiveType::U32)
+                ));
+                assert!(matches!(
+                    &elements[1],
+                    TypeExpr::Primitive(PrimitiveType::Str)
+                ));
+            }
+            other => panic!("expected Tuple, got {other:?}"),
+        },
+        other => panic!("expected RecordDef, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_unit_type() {
+    let input = "record Foo { nothing: () }";
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::RecordDef(r) => {
+            assert!(matches!(&r.fields[0].ty, TypeExpr::Unit));
+        }
+        other => panic!("expected RecordDef, got {other:?}"),
+    }
+}

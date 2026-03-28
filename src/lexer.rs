@@ -63,7 +63,8 @@ pub enum Token {
     Gt,
     Lt,
     Pipe,
-    Arrow, // ->
+    Arrow,     // ->
+    Semicolon, // ;
 }
 
 #[derive(Debug, Clone)]
@@ -408,6 +409,13 @@ pub fn lex(input: &str) -> Result<Vec<Spanned>, LexError> {
                 chars.next();
                 tokens.push(Spanned {
                     kind: Token::Pipe,
+                    span: pos..pos + 1,
+                });
+            }
+            ';' => {
+                chars.next();
+                tokens.push(Spanned {
+                    kind: Token::Semicolon,
                     span: pos..pos + 1,
                 });
             }

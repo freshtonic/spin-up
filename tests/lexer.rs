@@ -168,7 +168,14 @@ fn test_lex_float_exponent() {
 fn test_lex_attribute() {
     let tokens = lex("#[lang-item]").unwrap();
     let kinds: Vec<_> = tokens.iter().map(|t| &t.kind).collect();
-    assert_eq!(kinds, &[&Token::HashBracket, &Token::Ident("lang-item".to_string()), &Token::RBracket]);
+    assert_eq!(
+        kinds,
+        &[
+            &Token::HashBracket,
+            &Token::Ident("lang-item".to_string()),
+            &Token::RBracket
+        ]
+    );
 }
 
 #[test]

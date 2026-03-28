@@ -257,6 +257,43 @@ impl Parser {
             return Ok(crate::ast::TypeExpr::Primitive(primitive));
         }
 
+        // Array [T; N] or Slice [T]
+        if self.check(&Token::LBracket) {
+            self.advance();
+            let element = self.parse_type_expr()?;
+            if self.check(&Token::Semicolon) {
+                self.advance();
+                let size = self.parse_array_size()?;
+                self.expect_token(Token::RBracket)?;
+                return Ok(crate::ast::TypeExpr::Array {
+                    element: Box::new(element),
+                    size,
+                });
+            }
+            self.expect_token(Token::RBracket)?;
+            return Ok(crate::ast::TypeExpr::Slice(Box::new(element)));
+        }
+
+        // Tuple (T1, T2, ...) or Unit ()
+        if self.check(&Token::LParen) {
+            self.advance();
+            if self.check(&Token::RParen) {
+                self.advance();
+                return Ok(crate::ast::TypeExpr::Unit);
+            }
+            let mut elements = Vec::new();
+            loop {
+                elements.push(self.parse_type_expr()?);
+                if self.check(&Token::Comma) {
+                    self.advance();
+                } else {
+                    break;
+                }
+            }
+            self.expect_token(Token::RParen)?;
+            return Ok(crate::ast::TypeExpr::Tuple(elements));
+        }
+
         let (name, _) = self.expect_ident()?;
 
         // module::Type
@@ -376,6 +413,27 @@ impl Parser {
         };
         self.advance();
         Some(primitive)
+    }
+
+    fn parse_array_size(&mut self) -> Result<usize, ParseError> {
+        match self.advance() {
+            Some(Spanned {
+                kind: Token::Number(n),
+                span,
+            }) => n.parse::<usize>().map_err(|_| ParseError::Expected {
+                expected: "valid array size (usize)".to_string(),
+                found: n.clone(),
+                pos: span.start,
+            }),
+            Some(Spanned { kind, span }) => Err(ParseError::Expected {
+                expected: "array size (number)".to_string(),
+                found: format!("{kind:?}"),
+                pos: span.start,
+            }),
+            None => Err(ParseError::UnexpectedEof {
+                expected: "array size (number)".to_string(),
+            }),
+        }
     }
 
     fn check(&self, expected: &Token) -> bool {
