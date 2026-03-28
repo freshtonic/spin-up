@@ -69,13 +69,16 @@ impl Parser {
                 Token::Resource => {
                     items.push(Item::ResourceDef(self.parse_resource_def(attributes)?));
                 }
+                Token::Record => {
+                    items.push(Item::RecordDef(self.parse_record_def(attributes)?));
+                }
                 Token::Supplies => {
                     items.push(Item::SuppliesDef(self.parse_supplies_def()?));
                 }
                 other => {
                     let span = &self.peek().unwrap().span;
                     return Err(ParseError::Expected {
-                        expected: "import, resource, or supplies".to_string(),
+                        expected: "import, resource, record, or supplies".to_string(),
                         found: format!("{other:?}"),
                         pos: span.start,
                     });
@@ -135,6 +138,33 @@ impl Parser {
         let end = self.expect_token(Token::RBrace)?;
 
         Ok(crate::ast::ResourceDef {
+            name,
+            attributes,
+            fields,
+            span: start..end.end,
+        })
+    }
+
+    fn parse_record_def(
+        &mut self,
+        attributes: Vec<Attribute>,
+    ) -> Result<crate::ast::RecordDef, ParseError> {
+        let start = self.advance().unwrap().span.start; // consume 'record'
+        let (name, _) = self.expect_ident()?;
+        self.expect_token(Token::LBrace)?;
+
+        let mut fields = Vec::new();
+        while !self.check(&Token::RBrace) {
+            fields.push(self.parse_field()?);
+            // Optional trailing comma
+            if self.check(&Token::Comma) {
+                self.advance();
+            }
+        }
+
+        let end = self.expect_token(Token::RBrace)?;
+
+        Ok(crate::ast::RecordDef {
             name,
             attributes,
             fields,

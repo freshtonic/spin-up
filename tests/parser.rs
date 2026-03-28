@@ -426,3 +426,47 @@ resource Postgres {}"#;
         other => panic!("expected ResourceDef, got {other:?}"),
     }
 }
+
+// --- Record definition parsing (Task 6) ---
+
+#[test]
+fn test_parse_record_def() {
+    let input = "record Tls {\n  port: u16,\n  key: str,\n}";
+    let module = parse(input).unwrap();
+    assert_eq!(module.items.len(), 1);
+    match &module.items[0] {
+        Item::RecordDef(r) => {
+            assert_eq!(r.name, "Tls");
+            assert_eq!(r.fields.len(), 2);
+            assert_eq!(r.fields[0].name, "port");
+            assert_eq!(r.fields[1].name, "key");
+        }
+        other => panic!("expected RecordDef, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_record_with_attribute() {
+    let input = "#[lang-item]\nrecord Tls {\n  port: u16,\n}";
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::RecordDef(r) => {
+            assert_eq!(r.attributes.len(), 1);
+            assert_eq!(r.attributes[0].name, "lang-item");
+            assert_eq!(r.fields.len(), 1);
+        }
+        other => panic!("expected RecordDef, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_empty_record() {
+    let module = parse("record Empty {}").unwrap();
+    match &module.items[0] {
+        Item::RecordDef(r) => {
+            assert_eq!(r.name, "Empty");
+            assert!(r.fields.is_empty());
+        }
+        other => panic!("expected RecordDef, got {other:?}"),
+    }
+}
