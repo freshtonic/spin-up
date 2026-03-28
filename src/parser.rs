@@ -1,4 +1,4 @@
-use crate::ast::{Import, Item, Module};
+use crate::ast::{Attribute, Import, Item, Module};
 use crate::lexer::{self, Spanned, Token};
 use thiserror::Error;
 
@@ -60,12 +60,14 @@ impl Parser {
         let mut items = Vec::new();
 
         while self.peek().is_some() {
+            let attributes = self.parse_attributes()?;
+
             match &self.peek().unwrap().kind {
                 Token::Import => {
                     imports.push(self.parse_import()?);
                 }
                 Token::Resource => {
-                    items.push(Item::ResourceDef(self.parse_resource_def()?));
+                    items.push(Item::ResourceDef(self.parse_resource_def(attributes)?));
                 }
                 Token::Supplies => {
                     items.push(Item::SuppliesDef(self.parse_supplies_def()?));
@@ -84,6 +86,26 @@ impl Parser {
         Ok(Module { imports, items })
     }
 
+    fn parse_attributes(&mut self) -> Result<Vec<Attribute>, ParseError> {
+        let mut attributes = Vec::new();
+
+        while let Some(Spanned {
+            kind: Token::HashBracket,
+            ..
+        }) = self.peek()
+        {
+            let start = self.advance().unwrap().span.start; // consume '#['
+            let (name, _) = self.expect_ident()?;
+            let end_span = self.expect_token(Token::RBracket)?;
+            attributes.push(Attribute {
+                name,
+                span: start..end_span.end,
+            });
+        }
+
+        Ok(attributes)
+    }
+
     fn parse_import(&mut self) -> Result<Import, ParseError> {
         let start = self.advance().unwrap().span.start; // consume 'import'
         let (module_name, name_span) = self.expect_ident()?;
@@ -93,7 +115,10 @@ impl Parser {
         })
     }
 
-    fn parse_resource_def(&mut self) -> Result<crate::ast::ResourceDef, ParseError> {
+    fn parse_resource_def(
+        &mut self,
+        attributes: Vec<Attribute>,
+    ) -> Result<crate::ast::ResourceDef, ParseError> {
         let start = self.advance().unwrap().span.start; // consume 'resource'
         let (name, _) = self.expect_ident()?;
         self.expect_token(Token::LBrace)?;
@@ -111,7 +136,7 @@ impl Parser {
 
         Ok(crate::ast::ResourceDef {
             name,
-            attributes: vec![],
+            attributes,
             fields,
             span: start..end.end,
         })
@@ -137,6 +162,11 @@ impl Parser {
             self.expect_token(Token::PathSep)?;
             let (name, _) = self.expect_ident()?;
             return Ok(crate::ast::TypeExpr::SelfPath(name));
+        }
+
+        // Primitive type keywords
+        if let Some(primitive) = self.try_parse_primitive() {
+            return Ok(crate::ast::TypeExpr::Primitive(primitive));
         }
 
         let (name, _) = self.expect_ident()?;
@@ -236,6 +266,28 @@ impl Parser {
                 expected: "expression".to_string(),
             }),
         }
+    }
+
+    fn try_parse_primitive(&mut self) -> Option<crate::ast::PrimitiveType> {
+        let primitive = match self.peek()?.kind {
+            Token::Bool => crate::ast::PrimitiveType::Bool,
+            Token::U8 => crate::ast::PrimitiveType::U8,
+            Token::U16 => crate::ast::PrimitiveType::U16,
+            Token::U32 => crate::ast::PrimitiveType::U32,
+            Token::U64 => crate::ast::PrimitiveType::U64,
+            Token::U128 => crate::ast::PrimitiveType::U128,
+            Token::I8 => crate::ast::PrimitiveType::I8,
+            Token::I16 => crate::ast::PrimitiveType::I16,
+            Token::I32 => crate::ast::PrimitiveType::I32,
+            Token::I64 => crate::ast::PrimitiveType::I64,
+            Token::I128 => crate::ast::PrimitiveType::I128,
+            Token::F32 => crate::ast::PrimitiveType::F32,
+            Token::F64 => crate::ast::PrimitiveType::F64,
+            Token::Str => crate::ast::PrimitiveType::Str,
+            _ => return None,
+        };
+        self.advance();
+        Some(primitive)
     }
 
     fn check(&self, expected: &Token) -> bool {

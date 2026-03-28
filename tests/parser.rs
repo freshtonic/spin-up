@@ -394,3 +394,35 @@ fn test_resource_def_has_attributes_field() {
         other => panic!("expected ResourceDef, got {other:?}"),
     }
 }
+
+#[test]
+fn test_parse_attribute_on_resource() {
+    let input = r#"#[lang-item]
+resource Postgres {
+  port: u32,
+}"#;
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::ResourceDef(r) => {
+            assert_eq!(r.attributes.len(), 1);
+            assert_eq!(r.attributes[0].name, "lang-item");
+        }
+        other => panic!("expected ResourceDef, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_multiple_attributes() {
+    let input = r#"#[lang-item]
+#[deprecated]
+resource Postgres {}"#;
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::ResourceDef(r) => {
+            assert_eq!(r.attributes.len(), 2);
+            assert_eq!(r.attributes[0].name, "lang-item");
+            assert_eq!(r.attributes[1].name, "deprecated");
+        }
+        other => panic!("expected ResourceDef, got {other:?}"),
+    }
+}
