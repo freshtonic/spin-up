@@ -2,8 +2,9 @@
 name = "spin-up"
 version = "0.1.0"
 edition = "2024"
-description = "A local development orchestrator that replaces Docker Compose"
+description = "A local development orchestrator for discerning developers with impeccable taste"
 license = "MIT"
+repository = "https://github.com/freshtonic/spin-up"
 
 [[bin]]
 name = "spin"
@@ -13,7 +14,7 @@ path = "src/main.rs"
 clap = { version = "4", features = ["derive"] }
 miette = { version = "7", features = ["fancy"] }
 thiserror = "2"
-logos = "0.15"
+logos = "0.16.1"
 
 [dev-dependencies]
 assert_cmd = "2"
