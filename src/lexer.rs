@@ -120,14 +120,100 @@ pub fn lex(input: &str) -> Result<Vec<Spanned>, LexError> {
             c if c.is_ascii_digit() => {
                 let start = pos;
                 let mut value = String::new();
-                while let Some(&(_, c)) = chars.peek() {
-                    if c.is_ascii_digit() || c == '.' {
-                        value.push(c);
+
+                // Check for 0x, 0b, 0o prefixes
+                if c == '0'
+                    && let Some((_, prefix)) = chars.clone().nth(1)
+                    && (prefix == 'x' || prefix == 'b' || prefix == 'o')
+                {
+                    // Consume '0' and prefix
+                    value.push(c);
+                    chars.next();
+                    value.push(prefix);
+                    chars.next();
+
+                    // Consume digits valid for the base + underscores
+                    while let Some(&(_, d)) = chars.peek() {
+                        if d.is_ascii_alphanumeric() || d == '_' {
+                            value.push(d);
+                            chars.next();
+                        } else {
+                            break;
+                        }
+                    }
+
+                    let end = start + value.len();
+                    tokens.push(Spanned {
+                        kind: Token::Number(value),
+                        span: start..end,
+                    });
+                    continue;
+                }
+
+                // Decimal number: digits and underscores
+                while let Some(&(_, d)) = chars.peek() {
+                    if d.is_ascii_digit() || d == '_' {
+                        value.push(d);
                         chars.next();
                     } else {
                         break;
                     }
                 }
+
+                // Optional decimal point followed by digits
+                if let Some(&(_, '.')) = chars.peek() {
+                    value.push('.');
+                    chars.next();
+                    while let Some(&(_, d)) = chars.peek() {
+                        if d.is_ascii_digit() || d == '_' {
+                            value.push(d);
+                            chars.next();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+
+                // Optional exponent e/E, optionally followed by +/-
+                if let Some(&(_, e)) = chars.peek()
+                    && (e == 'e' || e == 'E')
+                {
+                    value.push(e);
+                    chars.next();
+                    // Optional sign
+                    if let Some(&(_, sign)) = chars.peek()
+                        && (sign == '+' || sign == '-')
+                    {
+                        value.push(sign);
+                        chars.next();
+                    }
+                    // Exponent digits
+                    while let Some(&(_, d)) = chars.peek() {
+                        if d.is_ascii_digit() || d == '_' {
+                            value.push(d);
+                            chars.next();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+
+                // Optional type suffix (trailing alphabetic + digits, e.g. u32, f64, i8)
+                if let Some(&(_, s)) = chars.peek()
+                    && s.is_ascii_alphabetic()
+                {
+                    value.push(s);
+                    chars.next();
+                    while let Some(&(_, d)) = chars.peek() {
+                        if d.is_ascii_alphanumeric() {
+                            value.push(d);
+                            chars.next();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+
                 let end = start + value.len();
                 tokens.push(Spanned {
                     kind: Token::Number(value),

@@ -118,3 +118,48 @@ fn test_lex_record_and_choice_keywords() {
     let kinds: Vec<_> = tokens.iter().map(|t| &t.kind).collect();
     assert_eq!(kinds, &[&Token::Record, &Token::Choice]);
 }
+
+#[test]
+fn test_lex_hex_literal() {
+    let tokens = lex("0xff 0xFF 0x1A2B").unwrap();
+    assert_eq!(tokens[0].kind, Token::Number("0xff".to_string()));
+    assert_eq!(tokens[1].kind, Token::Number("0xFF".to_string()));
+    assert_eq!(tokens[2].kind, Token::Number("0x1A2B".to_string()));
+}
+
+#[test]
+fn test_lex_binary_literal() {
+    let tokens = lex("0b1010 0b0000_1111").unwrap();
+    assert_eq!(tokens[0].kind, Token::Number("0b1010".to_string()));
+    assert_eq!(tokens[1].kind, Token::Number("0b0000_1111".to_string()));
+}
+
+#[test]
+fn test_lex_octal_literal() {
+    let tokens = lex("0o77 0o755").unwrap();
+    assert_eq!(tokens[0].kind, Token::Number("0o77".to_string()));
+    assert_eq!(tokens[1].kind, Token::Number("0o755".to_string()));
+}
+
+#[test]
+fn test_lex_underscore_separators() {
+    let tokens = lex("1_000_000 0xff_ff").unwrap();
+    assert_eq!(tokens[0].kind, Token::Number("1_000_000".to_string()));
+    assert_eq!(tokens[1].kind, Token::Number("0xff_ff".to_string()));
+}
+
+#[test]
+fn test_lex_type_suffix() {
+    let tokens = lex("42u32 3.14f64 0xffu8").unwrap();
+    assert_eq!(tokens[0].kind, Token::Number("42u32".to_string()));
+    assert_eq!(tokens[1].kind, Token::Number("3.14f64".to_string()));
+    assert_eq!(tokens[2].kind, Token::Number("0xffu8".to_string()));
+}
+
+#[test]
+fn test_lex_float_exponent() {
+    let tokens = lex("1.0e10 2.5E-3 1e5").unwrap();
+    assert_eq!(tokens[0].kind, Token::Number("1.0e10".to_string()));
+    assert_eq!(tokens[1].kind, Token::Number("2.5E-3".to_string()));
+    assert_eq!(tokens[2].kind, Token::Number("1e5".to_string()));
+}
