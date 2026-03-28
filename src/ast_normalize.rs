@@ -42,10 +42,19 @@ pub struct NormalizedVariant {
 pub enum NormalizedTypeExpr {
     Named(String),
     Primitive(ast::PrimitiveType),
-    Path { module: String, name: String },
-    Generic { name: String, args: Vec<NormalizedTypeExpr> },
+    Path {
+        module: String,
+        name: String,
+    },
+    Generic {
+        name: String,
+        args: Vec<NormalizedTypeExpr>,
+    },
     SelfPath(String),
-    Array { element: Box<NormalizedTypeExpr>, size: usize },
+    Array {
+        element: Box<NormalizedTypeExpr>,
+        size: usize,
+    },
     Slice(Box<NormalizedTypeExpr>),
     Tuple(Vec<NormalizedTypeExpr>),
     Unit,
