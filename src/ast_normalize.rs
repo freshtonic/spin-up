@@ -1,0 +1,133 @@
+/// Normalized AST types with spans stripped for structural comparison.
+use crate::ast::{self, Item};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NormalizedItem {
+    RecordDef(NormalizedRecordDef),
+    ChoiceDef(NormalizedChoiceDef),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizedRecordDef {
+    pub name: String,
+    pub attributes: Vec<NormalizedAttribute>,
+    pub fields: Vec<NormalizedField>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizedChoiceDef {
+    pub name: String,
+    pub attributes: Vec<NormalizedAttribute>,
+    pub variants: Vec<NormalizedVariant>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizedAttribute {
+    pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizedField {
+    pub name: String,
+    pub ty: NormalizedTypeExpr,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizedVariant {
+    pub name: String,
+    pub fields: Vec<NormalizedTypeExpr>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NormalizedTypeExpr {
+    Named(String),
+    Primitive(ast::PrimitiveType),
+    Path { module: String, name: String },
+    Generic { name: String, args: Vec<NormalizedTypeExpr> },
+    SelfPath(String),
+    Array { element: Box<NormalizedTypeExpr>, size: usize },
+    Slice(Box<NormalizedTypeExpr>),
+    Tuple(Vec<NormalizedTypeExpr>),
+    Unit,
+}
+
+/// Normalize an AST item by stripping all span information for structural comparison.
+///
+/// Only `RecordDef` and `ChoiceDef` items are supported. Other item types
+/// (e.g. `ResourceDef`, `SuppliesDef`) will panic, as they are not used in the
+/// proc-macro comparison path.
+pub fn normalize_item(item: &Item) -> NormalizedItem {
+    match item {
+        Item::RecordDef(record) => NormalizedItem::RecordDef(normalize_record(record)),
+        Item::ChoiceDef(choice) => NormalizedItem::ChoiceDef(normalize_choice(choice)),
+        Item::ResourceDef(_) => {
+            panic!("normalize_item: ResourceDef is not supported in the normalization path")
+        }
+        Item::SuppliesDef(_) => {
+            panic!("normalize_item: SuppliesDef is not supported in the normalization path")
+        }
+    }
+}
+
+fn normalize_record(record: &ast::RecordDef) -> NormalizedRecordDef {
+    NormalizedRecordDef {
+        name: record.name.clone(),
+        attributes: record.attributes.iter().map(normalize_attribute).collect(),
+        fields: record.fields.iter().map(normalize_field).collect(),
+    }
+}
+
+fn normalize_choice(choice: &ast::ChoiceDef) -> NormalizedChoiceDef {
+    NormalizedChoiceDef {
+        name: choice.name.clone(),
+        attributes: choice.attributes.iter().map(normalize_attribute).collect(),
+        variants: choice.variants.iter().map(normalize_variant).collect(),
+    }
+}
+
+fn normalize_attribute(attr: &ast::Attribute) -> NormalizedAttribute {
+    NormalizedAttribute {
+        name: attr.name.clone(),
+    }
+}
+
+fn normalize_field(field: &ast::Field) -> NormalizedField {
+    NormalizedField {
+        name: field.name.clone(),
+        ty: normalize_type_expr(&field.ty),
+    }
+}
+
+fn normalize_variant(variant: &ast::Variant) -> NormalizedVariant {
+    NormalizedVariant {
+        name: variant.name.clone(),
+        fields: variant.fields.iter().map(normalize_type_expr).collect(),
+    }
+}
+
+fn normalize_type_expr(ty: &ast::TypeExpr) -> NormalizedTypeExpr {
+    match ty {
+        ast::TypeExpr::Named(name) => NormalizedTypeExpr::Named(name.clone()),
+        ast::TypeExpr::Primitive(prim) => NormalizedTypeExpr::Primitive(prim.clone()),
+        ast::TypeExpr::Path { module, name } => NormalizedTypeExpr::Path {
+            module: module.clone(),
+            name: name.clone(),
+        },
+        ast::TypeExpr::Generic { name, args } => NormalizedTypeExpr::Generic {
+            name: name.clone(),
+            args: args.iter().map(normalize_type_expr).collect(),
+        },
+        ast::TypeExpr::SelfPath(name) => NormalizedTypeExpr::SelfPath(name.clone()),
+        ast::TypeExpr::Array { element, size } => NormalizedTypeExpr::Array {
+            element: Box::new(normalize_type_expr(element)),
+            size: *size,
+        },
+        ast::TypeExpr::Slice(inner) => {
+            NormalizedTypeExpr::Slice(Box::new(normalize_type_expr(inner)))
+        }
+        ast::TypeExpr::Tuple(elements) => {
+            NormalizedTypeExpr::Tuple(elements.iter().map(normalize_type_expr).collect())
+        }
+        ast::TypeExpr::Unit => NormalizedTypeExpr::Unit,
+    }
+}

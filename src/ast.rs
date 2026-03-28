@@ -129,7 +129,7 @@ pub enum TypeExpr {
 }
 
 /// Primitive types built into the language
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PrimitiveType {
     Bool,
     U8,
