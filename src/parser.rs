@@ -1,4 +1,4 @@
-use crate::ast::{Attribute, Import, Item, Module};
+use crate::ast::{Attribute, Import, Item, Module, Variant};
 use crate::lexer::{self, Spanned, Token};
 use thiserror::Error;
 
@@ -72,13 +72,16 @@ impl Parser {
                 Token::Record => {
                     items.push(Item::RecordDef(self.parse_record_def(attributes)?));
                 }
+                Token::Choice => {
+                    items.push(Item::ChoiceDef(self.parse_choice_def(attributes)?));
+                }
                 Token::Supplies => {
                     items.push(Item::SuppliesDef(self.parse_supplies_def()?));
                 }
                 other => {
                     let span = &self.peek().unwrap().span;
                     return Err(ParseError::Expected {
-                        expected: "import, resource, record, or supplies".to_string(),
+                        expected: "import, resource, record, choice, or supplies".to_string(),
                         found: format!("{other:?}"),
                         pos: span.start,
                     });
@@ -169,6 +172,61 @@ impl Parser {
             attributes,
             fields,
             span: start..end.end,
+        })
+    }
+
+    fn parse_choice_def(
+        &mut self,
+        attributes: Vec<Attribute>,
+    ) -> Result<crate::ast::ChoiceDef, ParseError> {
+        let start = self.advance().unwrap().span.start; // consume 'choice'
+        let (name, _) = self.expect_ident()?;
+        self.expect_token(Token::LBrace)?;
+
+        let mut variants = Vec::new();
+        while !self.check(&Token::RBrace) {
+            variants.push(self.parse_variant()?);
+            // Optional trailing comma
+            if self.check(&Token::Comma) {
+                self.advance();
+            }
+        }
+
+        let end = self.expect_token(Token::RBrace)?;
+
+        Ok(crate::ast::ChoiceDef {
+            name,
+            attributes,
+            variants,
+            span: start..end.end,
+        })
+    }
+
+    fn parse_variant(&mut self) -> Result<Variant, ParseError> {
+        let (name, name_span) = self.expect_ident()?;
+        let mut fields = Vec::new();
+
+        if self.check(&Token::LParen) {
+            self.advance();
+            loop {
+                if self.check(&Token::RParen) {
+                    break;
+                }
+                fields.push(self.parse_type_expr()?);
+                if self.check(&Token::Comma) {
+                    self.advance();
+                } else {
+                    break;
+                }
+            }
+            self.expect_token(Token::RParen)?;
+        }
+
+        let end = self.previous_span_end();
+        Ok(Variant {
+            name,
+            fields,
+            span: name_span.start..end,
         })
     }
 

@@ -470,3 +470,65 @@ fn test_parse_empty_record() {
         other => panic!("expected RecordDef, got {other:?}"),
     }
 }
+
+// --- Choice definition parsing (Task 7) ---
+
+#[test]
+fn test_parse_choice_def() {
+    let input = "choice IpAddr {\n  V4(IpAddrV4),\n  V6(IpAddrV6),\n}";
+    let module = parse(input).unwrap();
+    assert_eq!(module.items.len(), 1);
+    match &module.items[0] {
+        Item::ChoiceDef(c) => {
+            assert_eq!(c.name, "IpAddr");
+            assert_eq!(c.variants.len(), 2);
+            assert_eq!(c.variants[0].name, "V4");
+            assert_eq!(c.variants[0].fields.len(), 1);
+            assert_eq!(c.variants[1].name, "V6");
+            assert_eq!(c.variants[1].fields.len(), 1);
+        }
+        other => panic!("expected ChoiceDef, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_choice_unit_variant() {
+    let input = "choice Option {\n  Some(T),\n  None,\n}";
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::ChoiceDef(c) => {
+            assert_eq!(c.variants.len(), 2);
+            assert_eq!(c.variants[0].name, "Some");
+            assert_eq!(c.variants[0].fields.len(), 1);
+            assert_eq!(c.variants[1].name, "None");
+            assert!(c.variants[1].fields.is_empty());
+        }
+        other => panic!("expected ChoiceDef, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_choice_with_attribute() {
+    let input = "#[lang-item]\nchoice IpAddr {\n  V4(IpAddrV4),\n  V6(IpAddrV6),\n}";
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::ChoiceDef(c) => {
+            assert_eq!(c.attributes.len(), 1);
+            assert_eq!(c.attributes[0].name, "lang-item");
+        }
+        other => panic!("expected ChoiceDef, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_choice_multi_field_variant() {
+    let input = "choice Pair {\n  Both(u32, str),\n  Neither,\n}";
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::ChoiceDef(c) => {
+            assert_eq!(c.variants[0].name, "Both");
+            assert_eq!(c.variants[0].fields.len(), 2);
+        }
+        other => panic!("expected ChoiceDef, got {other:?}"),
+    }
+}
