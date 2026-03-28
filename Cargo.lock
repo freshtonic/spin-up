@@ -5189,6 +5189,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "spin-core-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "spin-up",
+ "syn",
+]
+
+[[package]]
 name = "spin-up"
 version = "0.1.1"
 dependencies = [

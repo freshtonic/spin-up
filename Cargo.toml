@@ -1,3 +1,6 @@
+[workspace]
+members = [".", "crates/spin-core-macros"]
+
 [package]
 name = "spin-up"
 version = "0.1.1"
