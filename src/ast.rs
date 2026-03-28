@@ -14,18 +14,54 @@ pub struct Import {
     pub span: Range<usize>,
 }
 
+/// An attribute: `#[lang-item]`
+#[derive(Debug, Clone, PartialEq)]
+pub struct Attribute {
+    pub name: String,
+    pub span: Range<usize>,
+}
+
 /// A top-level item in a module
 #[derive(Debug, Clone)]
 pub enum Item {
     ResourceDef(ResourceDef),
     SuppliesDef(SuppliesDef),
+    RecordDef(RecordDef),
+    ChoiceDef(ChoiceDef),
 }
 
 /// A resource definition: `resource Postgres { ... }`
 #[derive(Debug, Clone)]
 pub struct ResourceDef {
     pub name: String,
+    pub attributes: Vec<Attribute>,
     pub fields: Vec<Field>,
+    pub span: Range<usize>,
+}
+
+/// A record definition (product type): `record Tls { port: u16, key: str }`
+#[derive(Debug, Clone)]
+pub struct RecordDef {
+    pub name: String,
+    pub attributes: Vec<Attribute>,
+    pub fields: Vec<Field>,
+    pub span: Range<usize>,
+}
+
+/// A choice definition (sum type): `choice IpAddr { V4(IpAddrV4), V6(IpAddrV6) }`
+#[derive(Debug, Clone)]
+pub struct ChoiceDef {
+    pub name: String,
+    pub attributes: Vec<Attribute>,
+    pub variants: Vec<Variant>,
+    pub span: Range<usize>,
+}
+
+/// A variant of a choice type
+#[derive(Debug, Clone)]
+pub struct Variant {
+    pub name: String,
+    pub fields: Vec<TypeExpr>,
     pub span: Range<usize>,
 }
 
@@ -72,12 +108,41 @@ pub enum Expr {
 /// A type expression
 #[derive(Debug, Clone)]
 pub enum TypeExpr {
-    /// A simple named type, e.g. `String`
+    /// A simple named type, e.g. `MyType`
     Named(String),
+    /// A primitive type, e.g. `u32`, `bool`, `str`
+    Primitive(PrimitiveType),
     /// A qualified path, e.g. `spin-core::TcpPort`
     Path { module: String, name: String },
-    /// A generic type, e.g. `Option<spin-core::TcpPort>`
+    /// A generic type, e.g. `Option<u32>`
     Generic { name: String, args: Vec<TypeExpr> },
     /// Self-qualified type, e.g. `Self::Tls`
     SelfPath(String),
+    /// Fixed-size array, e.g. `[u8; 4]`
+    Array { element: Box<TypeExpr>, size: usize },
+    /// Slice (size unknown), e.g. `[u8]`
+    Slice(Box<TypeExpr>),
+    /// Tuple, e.g. `(u32, str)`
+    Tuple(Vec<TypeExpr>),
+    /// Unit type `()`
+    Unit,
+}
+
+/// Primitive types built into the language
+#[derive(Debug, Clone, PartialEq)]
+pub enum PrimitiveType {
+    Bool,
+    U8,
+    U16,
+    U32,
+    U64,
+    U128,
+    I8,
+    I16,
+    I32,
+    I64,
+    I128,
+    F32,
+    F64,
+    Str,
 }

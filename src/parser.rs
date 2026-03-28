@@ -111,6 +111,7 @@ impl Parser {
 
         Ok(crate::ast::ResourceDef {
             name,
+            attributes: vec![],
             fields,
             span: start..end.end,
         })
