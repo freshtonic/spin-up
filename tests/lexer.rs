@@ -1,4 +1,4 @@
-use spin_up::lexer::{lex, Token};
+use spin_up::lexer::{Token, lex};
 
 #[test]
 fn test_lex_empty_input() {
@@ -69,10 +69,7 @@ fn test_lex_number_literal() {
 #[test]
 fn test_lex_string_literal() {
     let tokens = lex(r#""hello world""#).unwrap();
-    assert_eq!(
-        tokens[0].kind,
-        Token::StringLit("hello world".to_string())
-    );
+    assert_eq!(tokens[0].kind, Token::StringLit("hello world".to_string()));
 }
 
 #[test]

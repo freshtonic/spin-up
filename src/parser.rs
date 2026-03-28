@@ -241,10 +241,7 @@ impl Parser {
         matches!(self.peek(), Some(t) if std::mem::discriminant(&t.kind) == std::mem::discriminant(expected))
     }
 
-    fn expect_token(
-        &mut self,
-        expected: Token,
-    ) -> Result<std::ops::Range<usize>, ParseError> {
+    fn expect_token(&mut self, expected: Token) -> Result<std::ops::Range<usize>, ParseError> {
         match self.advance() {
             Some(Spanned { kind, span })
                 if std::mem::discriminant(kind) == std::mem::discriminant(&expected) =>

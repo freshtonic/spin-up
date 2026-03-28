@@ -86,16 +86,14 @@ fn test_parse_resource_with_generic_type() {
     let input = "resource Postgres {\n  tls: Option<Self::Tls>,\n}";
     let module = parse(input).unwrap();
     match &module.items[0] {
-        Item::ResourceDef(r) => {
-            match &r.fields[0].ty {
-                TypeExpr::Generic { name, args } => {
-                    assert_eq!(name, "Option");
-                    assert_eq!(args.len(), 1);
-                    assert!(matches!(&args[0], TypeExpr::SelfPath(n) if n == "Tls"));
-                }
-                other => panic!("expected Generic, got {other:?}"),
+        Item::ResourceDef(r) => match &r.fields[0].ty {
+            TypeExpr::Generic { name, args } => {
+                assert_eq!(name, "Option");
+                assert_eq!(args.len(), 1);
+                assert!(matches!(&args[0], TypeExpr::SelfPath(n) if n == "Tls"));
             }
-        }
+            other => panic!("expected Generic, got {other:?}"),
+        },
         other => panic!("expected ResourceDef, got {other:?}"),
     }
 }
