@@ -12,6 +12,12 @@ pub enum SpinPathError {
     ModuleNotFound(String),
     #[error("user-defined modules cannot use the 'spin-' prefix: {0}")]
     ReservedPrefix(String),
+    #[error("failed to read {path}: {source}")]
+    ReadError {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
 }
 
 #[derive(Debug)]
@@ -46,6 +52,17 @@ impl FromStr for SpinPath {
 impl SpinPath {
     pub fn dirs(&self) -> &[PathBuf] {
         &self.dirs
+    }
+
+    pub fn resolve_source(&self, module_name: &str) -> Result<String, SpinPathError> {
+        // Check builtins first
+        if let Some(source) = crate::builtins::get_module_source(module_name) {
+            return Ok(source.to_string());
+        }
+
+        // Then check SPIN_PATH on disk
+        let path = self.resolve(module_name)?;
+        std::fs::read_to_string(&path).map_err(|e| SpinPathError::ReadError { path, source: e })
     }
 
     pub fn resolve(&self, module_name: &str) -> Result<PathBuf, SpinPathError> {
