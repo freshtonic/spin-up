@@ -69,11 +69,8 @@ impl Parser {
                 Token::Resource => {
                     items.push(Item::ResourceDef(self.parse_resource_def(attributes)?));
                 }
-                Token::Record => {
-                    items.push(Item::RecordDef(self.parse_record_def(attributes)?));
-                }
-                Token::Choice => {
-                    items.push(Item::ChoiceDef(self.parse_choice_def(attributes)?));
+                Token::Type => {
+                    items.push(self.parse_type_def(attributes)?);
                 }
                 Token::Supplies => {
                     items.push(Item::SuppliesDef(self.parse_supplies_def()?));
@@ -81,7 +78,7 @@ impl Parser {
                 other => {
                     let span = &self.peek().unwrap().span;
                     return Err(ParseError::Expected {
-                        expected: "import, resource, record, choice, or supplies".to_string(),
+                        expected: "import, resource, type, or supplies".to_string(),
                         found: format!("{other:?}"),
                         pos: span.start,
                     });
@@ -148,58 +145,65 @@ impl Parser {
         })
     }
 
-    fn parse_record_def(
-        &mut self,
-        attributes: Vec<Attribute>,
-    ) -> Result<crate::ast::RecordDef, ParseError> {
-        let start = self.advance().unwrap().span.start; // consume 'record'
+    fn parse_type_def(&mut self, attributes: Vec<Attribute>) -> Result<Item, ParseError> {
+        let start = self.advance().unwrap().span.start; // consume 'type'
         let (name, _) = self.expect_ident()?;
         self.expect_token(Token::LBrace)?;
 
-        let mut fields = Vec::new();
-        while !self.check(&Token::RBrace) {
-            fields.push(self.parse_field()?);
-            // Optional trailing comma
-            if self.check(&Token::Comma) {
-                self.advance();
+        // Determine whether this is a product type (record) or sum type (choice)
+        // by peeking at the body:
+        // - Empty body (RBrace) => empty product type
+        // - Ident followed by Colon => product type (field: Type)
+        // - Otherwise => sum type (variants)
+        let is_product = match self.tokens.get(self.pos) {
+            Some(Spanned {
+                kind: Token::RBrace,
+                ..
+            }) => true,
+            Some(Spanned {
+                kind: Token::Ident(_),
+                ..
+            }) => matches!(
+                self.tokens.get(self.pos + 1),
+                Some(Spanned {
+                    kind: Token::Colon,
+                    ..
+                })
+            ),
+            _ => false,
+        };
+
+        if is_product {
+            let mut fields = Vec::new();
+            while !self.check(&Token::RBrace) {
+                fields.push(self.parse_field()?);
+                if self.check(&Token::Comma) {
+                    self.advance();
+                }
             }
-        }
-
-        let end = self.expect_token(Token::RBrace)?;
-
-        Ok(crate::ast::RecordDef {
-            name,
-            attributes,
-            fields,
-            span: start..end.end,
-        })
-    }
-
-    fn parse_choice_def(
-        &mut self,
-        attributes: Vec<Attribute>,
-    ) -> Result<crate::ast::ChoiceDef, ParseError> {
-        let start = self.advance().unwrap().span.start; // consume 'choice'
-        let (name, _) = self.expect_ident()?;
-        self.expect_token(Token::LBrace)?;
-
-        let mut variants = Vec::new();
-        while !self.check(&Token::RBrace) {
-            variants.push(self.parse_variant()?);
-            // Optional trailing comma
-            if self.check(&Token::Comma) {
-                self.advance();
+            let end = self.expect_token(Token::RBrace)?;
+            Ok(Item::RecordDef(crate::ast::RecordDef {
+                name,
+                attributes,
+                fields,
+                span: start..end.end,
+            }))
+        } else {
+            let mut variants = Vec::new();
+            while !self.check(&Token::RBrace) {
+                variants.push(self.parse_variant()?);
+                if self.check(&Token::Comma) {
+                    self.advance();
+                }
             }
+            let end = self.expect_token(Token::RBrace)?;
+            Ok(Item::ChoiceDef(crate::ast::ChoiceDef {
+                name,
+                attributes,
+                variants,
+                span: start..end.end,
+            }))
         }
-
-        let end = self.expect_token(Token::RBrace)?;
-
-        Ok(crate::ast::ChoiceDef {
-            name,
-            attributes,
-            variants,
-            span: start..end.end,
-        })
     }
 
     fn parse_variant(&mut self) -> Result<Variant, ParseError> {

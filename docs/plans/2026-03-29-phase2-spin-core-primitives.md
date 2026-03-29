@@ -48,17 +48,17 @@ fn test_lex_primitive_type_keywords() {
 }
 
 #[test]
-fn test_lex_record_and_choice_keywords() {
-    let tokens = lex("record choice").unwrap();
+fn test_lex_type_keyword() {
+    let tokens = lex("type").unwrap();
     let kinds: Vec<_> = tokens.iter().map(|t| &t.kind).collect();
-    assert_eq!(kinds, &[&Token::Record, &Token::Choice]);
+    assert_eq!(kinds, &[&Token::Type]);
 }
 ```
 
 **Step 2: Run tests to verify they fail**
 
 Run: `cargo test --test lexer`
-Expected: FAIL — `Token::Bool`, `Token::Record`, etc. don't exist
+Expected: FAIL — `Token::Bool`, `Token::Type`, etc. don't exist
 
 **Step 3: Add keyword variants to Token enum**
 
@@ -82,8 +82,7 @@ Add to the `Token` enum in `src/lexer.rs`:
     Str,
 
     // Type definition keywords
-    Record,
-    Choice,
+    Type,
 ```
 
 Add to the keyword match in the `lex` function:
@@ -103,8 +102,7 @@ Add to the keyword match in the `lex` function:
                     "f32" => Token::F32,
                     "f64" => Token::F64,
                     "str" => Token::Str,
-                    "record" => Token::Record,
-                    "choice" => Token::Choice,
+                    "type" => Token::Type,
 ```
 
 **Step 4: Run tests to verify they pass**
@@ -116,7 +114,7 @@ Expected: All tests PASS
 
 ```bash
 git add src/lexer.rs tests/lexer.rs
-git commit -m "feat: add primitive type and record/choice keywords to lexer"
+git commit -m "feat: add primitive type and type keyword to lexer"
 ```
 
 ---
@@ -232,7 +230,7 @@ fn test_lex_attribute() {
 
 #[test]
 fn test_lex_attribute_before_choice() {
-    let tokens = lex("#[lang-item]\nchoice IpAddr {}").unwrap();
+    let tokens = lex("#[lang-item]\ntype IpAddr {}").unwrap();
     let kinds: Vec<_> = tokens.iter().map(|t| &t.kind).collect();
     assert_eq!(
         kinds,
@@ -321,7 +319,7 @@ pub enum Item {
     ChoiceDef(ChoiceDef),
 }
 
-/// A record definition (product type): `record Tls { port: u16, key: str }`
+/// A record definition (product type): `type Tls { port: u16, key: str }`
 #[derive(Debug, Clone)]
 pub struct RecordDef {
     pub name: String,
@@ -330,7 +328,7 @@ pub struct RecordDef {
     pub span: Range<usize>,
 }
 
-/// A choice definition (sum type): `choice IpAddr { V4(IpAddrV4), V6(IpAddrV6) }`
+/// A choice definition (sum type): `type IpAddr { V4(IpAddrV4), V6(IpAddrV6) }`
 #[derive(Debug, Clone)]
 pub struct ChoiceDef {
     pub name: String,
@@ -339,7 +337,7 @@ pub struct ChoiceDef {
     pub span: Range<usize>,
 }
 
-/// A variant of a choice type
+/// A variant of a sum type
 #[derive(Debug, Clone)]
 pub struct Variant {
     pub name: String,
@@ -416,7 +414,7 @@ The `ResourceDef` struct gains a new `attributes` field — update the parser's 
 
 ```bash
 git add src/ast.rs src/parser.rs
-git commit -m "feat: add record, choice, attribute, and extended type AST nodes"
+git commit -m "feat: add type definition, attribute, and extended type AST nodes"
 ```
 
 ---
@@ -503,7 +501,7 @@ Append to `tests/parser.rs`:
 ```rust
 #[test]
 fn test_parse_record_def() {
-    let input = "record Tls {\n  port: u16,\n  key: str,\n}";
+    let input = "type Tls {\n  port: u16,\n  key: str,\n}";
     let module = parse(input).unwrap();
     assert_eq!(module.items.len(), 1);
     match &module.items[0] {
@@ -519,7 +517,7 @@ fn test_parse_record_def() {
 
 #[test]
 fn test_parse_record_with_attribute() {
-    let input = "#[lang-item]\nrecord Tls {\n  port: u16,\n}";
+    let input = "#[lang-item]\ntype Tls {\n  port: u16,\n}";
     let module = parse(input).unwrap();
     match &module.items[0] {
         Item::RecordDef(r) => {
@@ -533,7 +531,7 @@ fn test_parse_record_with_attribute() {
 
 #[test]
 fn test_parse_empty_record() {
-    let module = parse("record Empty {}").unwrap();
+    let module = parse("type Empty {}").unwrap();
     match &module.items[0] {
         Item::RecordDef(r) => {
             assert_eq!(r.name, "Empty");
@@ -547,11 +545,11 @@ fn test_parse_empty_record() {
 **Step 2: Run tests to verify they fail**
 
 Run: `cargo test --test parser`
-Expected: FAIL — parser doesn't handle `Token::Record`
+Expected: FAIL — parser doesn't handle `Token::Type`
 
-**Step 3: Implement record parsing**
+**Step 3: Implement type definition parsing**
 
-In `parse_module`, add a `Token::Record` arm that dispatches to `parse_record_def(attributes)`. The implementation is almost identical to `parse_resource_def` — consume `record`, expect ident (name), expect `{`, parse fields until `}`. Returns `RecordDef`.
+In `parse_module`, add a `Token::Type` arm that dispatches to `parse_type_def(attributes)`. The parser peeks at the body after `{` to determine whether it is a product type (record) or sum type (choice). If the first token is `Ident` followed by `Colon`, it is a product type; otherwise a sum type.
 
 The `parse_field` method already exists and handles `name: TypeExpr` — reuse it directly.
 
@@ -564,7 +562,7 @@ Expected: All tests PASS
 
 ```bash
 git add src/parser.rs tests/parser.rs
-git commit -m "feat: add record definition parsing"
+git commit -m "feat: add type definition parsing (product types)"
 ```
 
 ---
@@ -582,7 +580,7 @@ Append to `tests/parser.rs`:
 ```rust
 #[test]
 fn test_parse_choice_def() {
-    let input = "choice IpAddr {\n  V4(IpAddrV4),\n  V6(IpAddrV6),\n}";
+    let input = "type IpAddr {\n  V4(IpAddrV4),\n  V6(IpAddrV6),\n}";
     let module = parse(input).unwrap();
     assert_eq!(module.items.len(), 1);
     match &module.items[0] {
@@ -600,7 +598,7 @@ fn test_parse_choice_def() {
 
 #[test]
 fn test_parse_choice_unit_variant() {
-    let input = "choice Option {\n  Some(T),\n  None,\n}";
+    let input = "type Option {\n  Some(T),\n  None,\n}";
     let module = parse(input).unwrap();
     match &module.items[0] {
         Item::ChoiceDef(c) => {
@@ -616,7 +614,7 @@ fn test_parse_choice_unit_variant() {
 
 #[test]
 fn test_parse_choice_with_attribute() {
-    let input = "#[lang-item]\nchoice IpAddr {\n  V4(IpAddrV4),\n  V6(IpAddrV6),\n}";
+    let input = "#[lang-item]\ntype IpAddr {\n  V4(IpAddrV4),\n  V6(IpAddrV6),\n}";
     let module = parse(input).unwrap();
     match &module.items[0] {
         Item::ChoiceDef(c) => {
@@ -629,7 +627,7 @@ fn test_parse_choice_with_attribute() {
 
 #[test]
 fn test_parse_choice_multi_field_variant() {
-    let input = "choice Pair {\n  Both(u32, str),\n  Neither,\n}";
+    let input = "type Pair {\n  Both(u32, str),\n  Neither,\n}";
     let module = parse(input).unwrap();
     match &module.items[0] {
         Item::ChoiceDef(c) => {
@@ -644,13 +642,11 @@ fn test_parse_choice_multi_field_variant() {
 **Step 2: Run tests to verify they fail**
 
 Run: `cargo test --test parser`
-Expected: FAIL — parser doesn't handle `Token::Choice`
+Expected: FAIL — parser doesn't handle sum type variant of `Token::Type`
 
-**Step 3: Implement choice parsing**
+**Step 3: Implement sum type parsing**
 
-In `parse_module`, add a `Token::Choice` arm that dispatches to `parse_choice_def(attributes)`.
-
-`parse_choice_def`: consume `choice`, expect ident (name), expect `{`, parse variants until `}`. Each variant is: ident name, optionally followed by `(` type_expr [, type_expr]* `)`, then optional trailing comma.
+The `parse_type_def` method already handles both product and sum types via body peeking. When the body contains variant syntax (identifiers followed by `(` rather than `:`), it parses as a sum type (ChoiceDef).
 
 Add `parse_variant` method:
 
@@ -693,7 +689,7 @@ Expected: All tests PASS
 
 ```bash
 git add src/parser.rs tests/parser.rs
-git commit -m "feat: add choice definition parsing with variants"
+git commit -m "feat: add sum type definition parsing with variants"
 ```
 
 ---
@@ -713,7 +709,7 @@ use spin_up::ast::PrimitiveType;
 
 #[test]
 fn test_parse_primitive_type_in_field() {
-    let input = "record Foo { x: u32, y: bool, z: str }";
+    let input = "type Foo { x: u32, y: bool, z: str }";
     let module = parse(input).unwrap();
     match &module.items[0] {
         Item::RecordDef(r) => {
@@ -727,7 +723,7 @@ fn test_parse_primitive_type_in_field() {
 
 #[test]
 fn test_parse_array_type() {
-    let input = "record Foo { data: [u8; 4] }";
+    let input = "type Foo { data: [u8; 4] }";
     let module = parse(input).unwrap();
     match &module.items[0] {
         Item::RecordDef(r) => {
@@ -745,7 +741,7 @@ fn test_parse_array_type() {
 
 #[test]
 fn test_parse_slice_type() {
-    let input = "record Foo { data: [u8] }";
+    let input = "type Foo { data: [u8] }";
     let module = parse(input).unwrap();
     match &module.items[0] {
         Item::RecordDef(r) => {
@@ -762,7 +758,7 @@ fn test_parse_slice_type() {
 
 #[test]
 fn test_parse_tuple_type() {
-    let input = "record Foo { pair: (u32, str) }";
+    let input = "type Foo { pair: (u32, str) }";
     let module = parse(input).unwrap();
     match &module.items[0] {
         Item::RecordDef(r) => {
@@ -781,7 +777,7 @@ fn test_parse_tuple_type() {
 
 #[test]
 fn test_parse_unit_type() {
-    let input = "record Foo { nothing: () }";
+    let input = "type Foo { nothing: () }";
     let module = parse(input).unwrap();
     match &module.items[0] {
         Item::RecordDef(r) => {
@@ -838,35 +834,35 @@ Create `spin-core-modules/spin-core-net.spin`:
 
 ```
 #[lang-item]
-record IpAddrV4 {
+type IpAddrV4 {
   octets: [u8; 4],
 }
 
 #[lang-item]
-record IpAddrV6 {
+type IpAddrV6 {
   octets: [u8; 16],
 }
 
 #[lang-item]
-choice IpAddr {
+type IpAddr {
   V4(IpAddrV4),
   V6(IpAddrV6),
 }
 
 #[lang-item]
-record SocketAddrV4 {
+type SocketAddrV4 {
   ip: IpAddrV4,
   port: u16,
 }
 
 #[lang-item]
-record SocketAddrV6 {
+type SocketAddrV6 {
   ip: IpAddrV6,
   port: u16,
 }
 
 #[lang-item]
-choice SocketAddr {
+type SocketAddr {
   V4(SocketAddrV4),
   V6(SocketAddrV6),
 }

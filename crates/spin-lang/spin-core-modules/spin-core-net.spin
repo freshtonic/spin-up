@@ -1,33 +1,33 @@
 #[lang-item]
-record IpAddrV4 {
+type IpAddrV4 {
   octets: [u8; 4],
 }
 
 #[lang-item]
-record IpAddrV6 {
+type IpAddrV6 {
   octets: [u8; 16],
 }
 
 #[lang-item]
-choice IpAddr {
+type IpAddr {
   V4(IpAddrV4),
   V6(IpAddrV6),
 }
 
 #[lang-item]
-record SocketAddrV4 {
+type SocketAddrV4 {
   ip: IpAddrV4,
   port: u16,
 }
 
 #[lang-item]
-record SocketAddrV6 {
+type SocketAddrV6 {
   ip: IpAddrV6,
   port: u16,
 }
 
 #[lang-item]
-choice SocketAddr {
+type SocketAddr {
   V4(SocketAddrV4),
   V6(SocketAddrV6),
 }

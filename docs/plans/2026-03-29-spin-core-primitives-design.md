@@ -33,8 +33,8 @@ Primitives map directly to Rust equivalents. Since they are Rust builtins, the `
 
 ### Built-in Types
 
-- `Option<T>` — choice with `Some(T)` / `None` variants.
-- `Result<T>` — choice with `Ok(T)` / `Err(Error)` variants. Unlike Rust, the error type is always `spin-core::Error` — not parameterized.
+- `Option<T>` — sum type with `Some(T)` / `None` variants.
+- `Result<T>` — sum type with `Ok(T)` / `Err(Error)` variants. Unlike Rust, the error type is always `spin-core::Error` — not parameterized.
 - `Error` — opaque to users. They can receive and propagate it but not construct or inspect it.
 - `Set<T>` — unordered collection of unique values.
 - `Map<K, V>` — key-value mapping.
@@ -61,10 +61,10 @@ The first `spin-core-*` module. Written in `.spin` source, embedded in the binar
 
 - `IpAddrV4` — IPv4 address
 - `IpAddrV6` — IPv6 address
-- `IpAddr` — choice of `V4(IpAddrV4)` / `V6(IpAddrV6)`
+- `IpAddr` — sum type: `V4(IpAddrV4)` / `V6(IpAddrV6)`
 - `SocketAddrV4` — IPv4 address + port (`IpAddrV4`, `u16`)
 - `SocketAddrV6` — IPv6 address + port (`IpAddrV6`, `u16`)
-- `SocketAddr` — choice of `V4(SocketAddrV4)` / `V6(SocketAddrV6)`
+- `SocketAddr` — sum type: `V4(SocketAddrV4)` / `V6(SocketAddrV6)`
 
 These align with Rust's `std::net` equivalents.
 
@@ -83,7 +83,7 @@ Types are annotated with `#[lang-item]`, indicating they have a Rust-native impl
 
 ```
 #[lang-item]
-choice IpAddr {
+type IpAddr {
   V4(IpAddrV4),
   V6(IpAddrV6),
 }
@@ -131,7 +131,7 @@ The lexer needs updates to support the full primitive type system and new syntax
 ### New keywords
 
 - Primitive type names: `bool`, `u8`, `u16`, `u32`, `u64`, `u128`, `i8`, `i16`, `i32`, `i64`, `i128`, `f32`, `f64`, `str`
-- `record` and `choice` for product and sum type definitions
+- `type` for product and sum type definitions
 
 ### New tokens
 

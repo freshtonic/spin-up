@@ -39,7 +39,7 @@ pub struct ResourceDef {
     pub span: Range<usize>,
 }
 
-/// A record definition (product type): `record Tls { port: u16, key: str }`
+/// A record definition (product type): `type Tls { port: u16, key: str }`
 #[derive(Debug, Clone)]
 pub struct RecordDef {
     pub name: String,
@@ -48,7 +48,7 @@ pub struct RecordDef {
     pub span: Range<usize>,
 }
 
-/// A choice definition (sum type): `choice IpAddr { V4(IpAddrV4), V6(IpAddrV6) }`
+/// A choice definition (sum type): `type IpAddr { V4(IpAddrV4), V6(IpAddrV6) }`
 #[derive(Debug, Clone)]
 pub struct ChoiceDef {
     pub name: String,

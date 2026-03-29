@@ -33,8 +33,7 @@ pub enum Token {
     Str,
 
     // Type definition keywords
-    Record,
-    Choice,
+    Type,
 
     // Literals
     Ident(String),
@@ -262,8 +261,7 @@ pub fn lex(input: &str) -> Result<Vec<Spanned>, LexError> {
                     "f32" => Token::F32,
                     "f64" => Token::F64,
                     "str" => Token::Str,
-                    "record" => Token::Record,
-                    "choice" => Token::Choice,
+                    "type" => Token::Type,
                     _ => Token::Ident(value),
                 };
                 tokens.push(Spanned {

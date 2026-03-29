@@ -113,10 +113,10 @@ fn test_lex_primitive_type_keywords() {
 }
 
 #[test]
-fn test_lex_record_and_choice_keywords() {
-    let tokens = lex("record choice").unwrap();
+fn test_lex_type_keyword() {
+    let tokens = lex("type").unwrap();
     let kinds: Vec<_> = tokens.iter().map(|t| &t.kind).collect();
-    assert_eq!(kinds, &[&Token::Record, &Token::Choice]);
+    assert_eq!(kinds, &[&Token::Type]);
 }
 
 #[test]
@@ -179,8 +179,8 @@ fn test_lex_attribute() {
 }
 
 #[test]
-fn test_lex_attribute_before_choice() {
-    let tokens = lex("#[lang-item]\nchoice IpAddr {}").unwrap();
+fn test_lex_attribute_before_type() {
+    let tokens = lex("#[lang-item]\ntype IpAddr {}").unwrap();
     let kinds: Vec<_> = tokens.iter().map(|t| &t.kind).collect();
     assert_eq!(
         kinds,
@@ -188,7 +188,7 @@ fn test_lex_attribute_before_choice() {
             &Token::HashBracket,
             &Token::Ident("lang-item".to_string()),
             &Token::RBracket,
-            &Token::Choice,
+            &Token::Type,
             &Token::Ident("IpAddr".to_string()),
             &Token::LBrace,
             &Token::RBrace,
