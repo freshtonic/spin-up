@@ -36,22 +36,14 @@ Primitives map directly to Rust equivalents. Since they are Rust builtins, the `
 - `Option<T>` — sum type with `Some(T)` / `None` variants.
 - `Result<T>` — sum type with `Ok(T)` / `Err(Error)` variants. Unlike Rust, the error type is always `spin-core::Error` — not parameterized.
 - `Error` — opaque to users. They can receive and propagate it but not construct or inspect it.
-- `Set<T>` — unordered collection of unique values.
-- `Map<K, V>` — key-value mapping.
-
-`Set` and `Map` are intrinsic types whose internals are not expressed in `.spin` source. No structural equivalence checking is performed for them.
 
 `Option` and `Result` correspond to Rust's `Option<T>` and `Result<T, SpinError>`. Since they are std types, the `#[spin-core]` proc-macro cannot be applied — structural equivalence is verified via manual tests.
 
 ### Core Traits
 
-All types — including user-defined resources — implicitly implement all core traits. No explicit `impl` or `derives` needed.
+All types — including user-defined types — implicitly implement all core traits. No explicit `impl` or `derives` needed.
 
 - `Eq`, `Ord`, `Display`, `Hash` — same semantics as Rust.
-- `Mappable` — Functor (`fmap`). No direct Rust equivalent.
-- `Applicable` — Applicative. No direct Rust equivalent.
-
-`Mappable` and `Applicable` require Rank-2 type checking, with implications for the type unification system in Phase 3 (static analysis).
 
 ## `spin-core-net.spin` — Networking Types
 
@@ -109,7 +101,7 @@ enum IpAddr {
 ### What needs manual tests instead
 
 - Primitives — Rust builtins, cannot annotate.
-- `Option<T>`, `Result<T>`, `Set<T>`, `Map<K, V>` — std types, cannot annotate.
+- `Option<T>`, `Result<T>` — std types, cannot annotate.
 - `Error` — opaque, no user-visible structure to verify.
 
 ## Lexer Changes
