@@ -1,6 +1,9 @@
 use spin_up::ast::{Attribute, ChoiceDef, Expr, Item, PrimitiveType, RecordDef, TypeExpr, Variant};
 use spin_up::parser::parse;
 
+// Note: The `resource` keyword has been removed. Resource definitions now use
+// the `type` keyword with record (product type) syntax: `type Foo = field: Type;`
+
 #[test]
 fn test_parse_single_import() {
     let module = parse("import postgres").unwrap();
@@ -36,38 +39,38 @@ fn test_parse_import_missing_name() {
 }
 
 #[test]
-fn test_parse_empty_resource() {
-    let module = parse("resource Postgres {}").unwrap();
+fn test_parse_empty_resource_as_record() {
+    let module = parse("type Postgres;").unwrap();
     assert_eq!(module.items.len(), 1);
     match &module.items[0] {
-        Item::ResourceDef(r) => {
+        Item::RecordDef(r) => {
             assert_eq!(r.name, "Postgres");
             assert!(r.fields.is_empty());
         }
-        other => panic!("expected ResourceDef, got {other:?}"),
+        other => panic!("expected RecordDef, got {other:?}"),
     }
 }
 
 #[test]
 fn test_parse_resource_with_simple_field() {
-    let input = "resource Postgres {\n  host: String,\n}";
+    let input = "type Postgres = host: String;";
     let module = parse(input).unwrap();
     match &module.items[0] {
-        Item::ResourceDef(r) => {
+        Item::RecordDef(r) => {
             assert_eq!(r.fields.len(), 1);
             assert_eq!(r.fields[0].name, "host");
             assert!(matches!(&r.fields[0].ty, TypeExpr::Named(n) if n == "String"));
         }
-        other => panic!("expected ResourceDef, got {other:?}"),
+        other => panic!("expected RecordDef, got {other:?}"),
     }
 }
 
 #[test]
 fn test_parse_resource_with_qualified_type() {
-    let input = "resource Postgres {\n  port: spin-core::TcpPort,\n}";
+    let input = "type Postgres = port: spin-core::TcpPort;";
     let module = parse(input).unwrap();
     match &module.items[0] {
-        Item::ResourceDef(r) => {
+        Item::RecordDef(r) => {
             assert_eq!(r.fields[0].name, "port");
             match &r.fields[0].ty {
                 TypeExpr::Path { module, name } => {
@@ -77,16 +80,16 @@ fn test_parse_resource_with_qualified_type() {
                 other => panic!("expected Path, got {other:?}"),
             }
         }
-        other => panic!("expected ResourceDef, got {other:?}"),
+        other => panic!("expected RecordDef, got {other:?}"),
     }
 }
 
 #[test]
 fn test_parse_resource_with_generic_type() {
-    let input = "resource Postgres {\n  tls: Option<Self::Tls>,\n}";
+    let input = "type Postgres = tls: Option<Self::Tls>;";
     let module = parse(input).unwrap();
     match &module.items[0] {
-        Item::ResourceDef(r) => match &r.fields[0].ty {
+        Item::RecordDef(r) => match &r.fields[0].ty {
             TypeExpr::Generic { name, args } => {
                 assert_eq!(name, "Option");
                 assert_eq!(args.len(), 1);
@@ -94,69 +97,61 @@ fn test_parse_resource_with_generic_type() {
             }
             other => panic!("expected Generic, got {other:?}"),
         },
-        other => panic!("expected ResourceDef, got {other:?}"),
+        other => panic!("expected RecordDef, got {other:?}"),
     }
 }
 
 #[test]
 fn test_parse_resource_with_self_path() {
-    let input = "resource Postgres {\n  tls: Self::Tls,\n}";
+    let input = "type Postgres = tls: Self::Tls;";
     let module = parse(input).unwrap();
     match &module.items[0] {
-        Item::ResourceDef(r) => {
+        Item::RecordDef(r) => {
             assert!(matches!(&r.fields[0].ty, TypeExpr::SelfPath(n) if n == "Tls"));
         }
-        other => panic!("expected ResourceDef, got {other:?}"),
+        other => panic!("expected RecordDef, got {other:?}"),
     }
 }
 
 #[test]
 fn test_parse_resource_trailing_comma_optional() {
-    let input = "resource Postgres {\n  host: String\n}";
+    let input = "type Postgres = host: String;";
     let module = parse(input).unwrap();
     match &module.items[0] {
-        Item::ResourceDef(r) => {
+        Item::RecordDef(r) => {
             assert_eq!(r.fields.len(), 1);
         }
-        other => panic!("expected ResourceDef, got {other:?}"),
+        other => panic!("expected RecordDef, got {other:?}"),
     }
 }
 
 #[test]
 fn test_parse_multiple_fields() {
-    let input = r#"resource Postgres {
-  version: spin-core::Semver,
-  host: spin-core::String,
-  port: spin-core::TcpPort,
-}"#;
+    let input = "type Postgres = version: spin-core::Semver, host: spin-core::String, port: spin-core::TcpPort;";
     let module = parse(input).unwrap();
     match &module.items[0] {
-        Item::ResourceDef(r) => {
+        Item::RecordDef(r) => {
             assert_eq!(r.fields.len(), 3);
             assert_eq!(r.fields[0].name, "version");
             assert_eq!(r.fields[1].name, "host");
             assert_eq!(r.fields[2].name, "port");
         }
-        other => panic!("expected ResourceDef, got {other:?}"),
+        other => panic!("expected RecordDef, got {other:?}"),
     }
 }
 
 #[test]
 fn test_parse_import_then_resource() {
-    let input = r#"import spin-core
-
-resource Postgres {
-  port: spin-core::TcpPort,
-}"#;
+    let input = "import spin-core\n\ntype Postgres = port: spin-core::TcpPort;";
     let module = parse(input).unwrap();
     assert_eq!(module.imports.len(), 1);
     assert_eq!(module.imports[0].module_name, "spin-core");
     assert_eq!(module.items.len(), 1);
     match &module.items[0] {
-        Item::ResourceDef(r) => {
+        Item::RecordDef(r) => {
             assert_eq!(r.name, "Postgres");
         }
-        other => panic!("expected ResourceDef, got {other:?}"),
+        other => panic!("expected RecordDef, got {other:?}"),
     }
 }
 
@@ -388,46 +383,40 @@ fn test_ast_item_choice_def_variant() {
 }
 
 #[test]
-fn test_resource_def_has_attributes_field() {
-    // Verify that existing parser still works and ResourceDef has attributes field
-    let module = parse("resource Postgres {}").unwrap();
+fn test_record_def_has_attributes_field() {
+    let module = parse("type Postgres;").unwrap();
     match &module.items[0] {
-        Item::ResourceDef(r) => {
+        Item::RecordDef(r) => {
             assert!(r.attributes.is_empty());
         }
-        other => panic!("expected ResourceDef, got {other:?}"),
+        other => panic!("expected RecordDef, got {other:?}"),
     }
 }
 
 #[test]
-fn test_parse_attribute_on_resource() {
-    let input = r#"#[lang-item]
-resource Postgres {
-  port: u32,
-}"#;
+fn test_parse_attribute_on_record() {
+    let input = "#[lang-item]\ntype Postgres = port: u32;";
     let module = parse(input).unwrap();
     match &module.items[0] {
-        Item::ResourceDef(r) => {
+        Item::RecordDef(r) => {
             assert_eq!(r.attributes.len(), 1);
             assert_eq!(r.attributes[0].name, "lang-item");
         }
-        other => panic!("expected ResourceDef, got {other:?}"),
+        other => panic!("expected RecordDef, got {other:?}"),
     }
 }
 
 #[test]
 fn test_parse_multiple_attributes() {
-    let input = r#"#[lang-item]
-#[deprecated]
-resource Postgres {}"#;
+    let input = "#[lang-item]\n#[deprecated]\ntype Postgres;";
     let module = parse(input).unwrap();
     match &module.items[0] {
-        Item::ResourceDef(r) => {
+        Item::RecordDef(r) => {
             assert_eq!(r.attributes.len(), 2);
             assert_eq!(r.attributes[0].name, "lang-item");
             assert_eq!(r.attributes[1].name, "deprecated");
         }
-        other => panic!("expected ResourceDef, got {other:?}"),
+        other => panic!("expected RecordDef, got {other:?}"),
     }
 }
 

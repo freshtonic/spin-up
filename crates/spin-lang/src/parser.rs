@@ -66,9 +66,6 @@ impl Parser {
                 Token::Import => {
                     imports.push(self.parse_import()?);
                 }
-                Token::Resource => {
-                    items.push(Item::ResourceDef(self.parse_resource_def(attributes)?));
-                }
                 Token::Type => {
                     items.push(self.parse_type_def(attributes)?);
                 }
@@ -78,7 +75,7 @@ impl Parser {
                 other => {
                     let span = &self.peek().unwrap().span;
                     return Err(ParseError::Expected {
-                        expected: "import, resource, type, or supplies".to_string(),
+                        expected: "import, type, or supplies".to_string(),
                         found: format!("{other:?}"),
                         pos: span.start,
                     });
@@ -115,33 +112,6 @@ impl Parser {
         Ok(Import {
             module_name,
             span: start..name_span.end,
-        })
-    }
-
-    fn parse_resource_def(
-        &mut self,
-        attributes: Vec<Attribute>,
-    ) -> Result<crate::ast::ResourceDef, ParseError> {
-        let start = self.advance().unwrap().span.start; // consume 'resource'
-        let (name, _) = self.expect_ident()?;
-        self.expect_token(Token::LBrace)?;
-
-        let mut fields = Vec::new();
-        while !self.check(&Token::RBrace) {
-            fields.push(self.parse_field()?);
-            // Optional trailing comma
-            if self.check(&Token::Comma) {
-                self.advance();
-            }
-        }
-
-        let end = self.expect_token(Token::RBrace)?;
-
-        Ok(crate::ast::ResourceDef {
-            name,
-            attributes,
-            fields,
-            span: start..end.end,
         })
     }
 

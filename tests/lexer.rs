@@ -8,13 +8,12 @@ fn test_lex_empty_input() {
 
 #[test]
 fn test_lex_keywords() {
-    let tokens = lex("import resource supplies if then else fn map filter").unwrap();
+    let tokens = lex("import supplies if then else fn map filter").unwrap();
     let kinds: Vec<_> = tokens.iter().map(|t| &t.kind).collect();
     assert_eq!(
         kinds,
         &[
             &Token::Import,
-            &Token::Resource,
             &Token::Supplies,
             &Token::If,
             &Token::Then,
@@ -74,9 +73,9 @@ fn test_lex_string_literal() {
 
 #[test]
 fn test_lex_comment_ignored() {
-    let tokens = lex("import // this is a comment\nresource").unwrap();
+    let tokens = lex("import // this is a comment\nsupplies").unwrap();
     let kinds: Vec<_> = tokens.iter().map(|t| &t.kind).collect();
-    assert_eq!(kinds, &[&Token::Import, &Token::Resource]);
+    assert_eq!(kinds, &[&Token::Import, &Token::Supplies]);
 }
 
 #[test]

@@ -27,21 +27,19 @@ A single module can play multiple roles and can export multiple resource definit
 **Resource definitions are traits.** They declare a set of typed fields that form the vocabulary for that resource:
 
 ```
-resource Postgres {
+type Postgres =
   version: spin-core::Semver,
   tls: Option<Self::Tls>,
   host: spin-core::String,
   port: spin-core::TcpPort,
   username: spin-core::String,
   password: spin-core::String,
-  init_script: Option<spin-core::FilePath>,
-}
+  init_script: Option<spin-core::FilePath>;
 
-resource Tls {
+type Tls =
   port: spin-core::TcpPort,
   ssl_key_file: spin-core::TlsKeyFile,
-  ssl_cert_file: spin-core::TlsCertFile,
-}
+  ssl_cert_file: spin-core::TlsCertFile;
 ```
 
 **Resources compose recursively.** A resource's fields can themselves be resources (e.g., Postgres TLS contains `TcpPort`, `TlsKeyFile`). The entire graph resolves down to `spin-core` primitives.

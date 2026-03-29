@@ -24,19 +24,9 @@ pub struct Attribute {
 /// A top-level item in a module
 #[derive(Debug, Clone)]
 pub enum Item {
-    ResourceDef(ResourceDef),
     SuppliesDef(SuppliesDef),
     RecordDef(RecordDef),
     ChoiceDef(ChoiceDef),
-}
-
-/// A resource definition: `resource Postgres { ... }`
-#[derive(Debug, Clone)]
-pub struct ResourceDef {
-    pub name: String,
-    pub attributes: Vec<Attribute>,
-    pub fields: Vec<Field>,
-    pub span: Range<usize>,
 }
 
 /// A record definition (product type): `type Tls = port: u16, key: str;`
@@ -67,7 +57,7 @@ pub struct Variant {
     pub span: Range<usize>,
 }
 
-/// A field in a resource definition: `port: spin-core::TcpPort`
+/// A field in a type definition: `port: spin-core::TcpPort`
 #[derive(Debug, Clone)]
 pub struct Field {
     pub name: String,
