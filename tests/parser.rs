@@ -241,6 +241,7 @@ fn test_ast_attribute_equality() {
 fn test_ast_record_def_construction() {
     let record = RecordDef {
         name: "Tls".to_string(),
+        type_params: vec![],
         attributes: vec![Attribute {
             name: "lang-item".to_string(),
             span: 0..11,
@@ -257,6 +258,7 @@ fn test_ast_record_def_construction() {
 fn test_ast_choice_def_construction() {
     let choice = ChoiceDef {
         name: "IpAddr".to_string(),
+        type_params: vec![],
         attributes: vec![],
         variants: vec![
             Variant {
@@ -365,6 +367,7 @@ fn test_ast_type_expr_unit() {
 fn test_ast_item_record_def_variant() {
     let item = Item::RecordDef(RecordDef {
         name: "Tls".to_string(),
+        type_params: vec![],
         attributes: vec![],
         fields: vec![],
         span: 0..10,
@@ -376,6 +379,7 @@ fn test_ast_item_record_def_variant() {
 fn test_ast_item_choice_def_variant() {
     let item = Item::ChoiceDef(ChoiceDef {
         name: "IpAddr".to_string(),
+        type_params: vec![],
         attributes: vec![],
         variants: vec![],
         span: 0..10,
@@ -431,7 +435,7 @@ resource Postgres {}"#;
 
 #[test]
 fn test_parse_record_def() {
-    let input = "type Tls {\n  port: u16,\n  key: str,\n}";
+    let input = "type Tls =\n  port: u16,\n  key: str,\n;";
     let module = parse(input).unwrap();
     assert_eq!(module.items.len(), 1);
     match &module.items[0] {
@@ -447,7 +451,7 @@ fn test_parse_record_def() {
 
 #[test]
 fn test_parse_record_with_attribute() {
-    let input = "#[lang-item]\ntype Tls {\n  port: u16,\n}";
+    let input = "#[lang-item]\ntype Tls =\n  port: u16,\n;";
     let module = parse(input).unwrap();
     match &module.items[0] {
         Item::RecordDef(r) => {
@@ -461,7 +465,7 @@ fn test_parse_record_with_attribute() {
 
 #[test]
 fn test_parse_empty_record() {
-    let module = parse("type Empty {}").unwrap();
+    let module = parse("type Empty = ;").unwrap();
     match &module.items[0] {
         Item::RecordDef(r) => {
             assert_eq!(r.name, "Empty");
@@ -475,7 +479,7 @@ fn test_parse_empty_record() {
 
 #[test]
 fn test_parse_choice_def() {
-    let input = "type IpAddr {\n  V4(IpAddrV4),\n  V6(IpAddrV6),\n}";
+    let input = "type IpAddr = V4(IpAddrV4) | V6(IpAddrV6);";
     let module = parse(input).unwrap();
     assert_eq!(module.items.len(), 1);
     match &module.items[0] {
@@ -493,7 +497,7 @@ fn test_parse_choice_def() {
 
 #[test]
 fn test_parse_choice_unit_variant() {
-    let input = "type Option {\n  Some(T),\n  None,\n}";
+    let input = "type Option = Some(T) | None;";
     let module = parse(input).unwrap();
     match &module.items[0] {
         Item::ChoiceDef(c) => {
@@ -509,7 +513,7 @@ fn test_parse_choice_unit_variant() {
 
 #[test]
 fn test_parse_choice_with_attribute() {
-    let input = "#[lang-item]\ntype IpAddr {\n  V4(IpAddrV4),\n  V6(IpAddrV6),\n}";
+    let input = "#[lang-item]\ntype IpAddr = V4(IpAddrV4) | V6(IpAddrV6);";
     let module = parse(input).unwrap();
     match &module.items[0] {
         Item::ChoiceDef(c) => {
@@ -522,7 +526,7 @@ fn test_parse_choice_with_attribute() {
 
 #[test]
 fn test_parse_choice_multi_field_variant() {
-    let input = "type Pair {\n  Both(u32, str),\n  Neither,\n}";
+    let input = "type Pair = Both(u32, str) | Neither;";
     let module = parse(input).unwrap();
     match &module.items[0] {
         Item::ChoiceDef(c) => {
@@ -537,7 +541,7 @@ fn test_parse_choice_multi_field_variant() {
 
 #[test]
 fn test_parse_primitive_type_in_field() {
-    let input = "type Foo { x: u32, y: bool, z: str }";
+    let input = "type Foo = x: u32, y: bool, z: str;";
     let module = parse(input).unwrap();
     match &module.items[0] {
         Item::RecordDef(r) => {
@@ -560,7 +564,7 @@ fn test_parse_primitive_type_in_field() {
 
 #[test]
 fn test_parse_array_type() {
-    let input = "type Foo { data: [u8; 4] }";
+    let input = "type Foo = data: [u8; 4];";
     let module = parse(input).unwrap();
     match &module.items[0] {
         Item::RecordDef(r) => match &r.fields[0].ty {
@@ -579,7 +583,7 @@ fn test_parse_array_type() {
 
 #[test]
 fn test_parse_slice_type() {
-    let input = "type Foo { data: [u8] }";
+    let input = "type Foo = data: [u8];";
     let module = parse(input).unwrap();
     match &module.items[0] {
         Item::RecordDef(r) => match &r.fields[0].ty {
@@ -597,7 +601,7 @@ fn test_parse_slice_type() {
 
 #[test]
 fn test_parse_tuple_type() {
-    let input = "type Foo { pair: (u32, str) }";
+    let input = "type Foo = pair: (u32, str);";
     let module = parse(input).unwrap();
     match &module.items[0] {
         Item::RecordDef(r) => match &r.fields[0].ty {
@@ -620,7 +624,7 @@ fn test_parse_tuple_type() {
 
 #[test]
 fn test_parse_unit_type() {
-    let input = "type Foo { nothing: () }";
+    let input = "type Foo = nothing: ();";
     let module = parse(input).unwrap();
     match &module.items[0] {
         Item::RecordDef(r) => {

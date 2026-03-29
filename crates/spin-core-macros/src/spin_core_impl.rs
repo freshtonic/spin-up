@@ -111,6 +111,7 @@ fn struct_to_normalized(item: &syn::ItemStruct) -> Result<NormalizedItem, String
 
     Ok(NormalizedItem::RecordDef(NormalizedRecordDef {
         name,
+        type_params: vec![],
         attributes: vec![],
         fields,
     }))
@@ -144,6 +145,7 @@ fn enum_to_normalized(item: &syn::ItemEnum) -> Result<NormalizedItem, String> {
 
     Ok(NormalizedItem::ChoiceDef(NormalizedChoiceDef {
         name,
+        type_params: vec![],
         attributes: vec![],
         variants,
     }))
@@ -154,11 +156,13 @@ fn strip_attributes(item: &NormalizedItem) -> NormalizedItem {
     match item {
         NormalizedItem::RecordDef(record) => NormalizedItem::RecordDef(NormalizedRecordDef {
             name: record.name.clone(),
+            type_params: record.type_params.clone(),
             attributes: vec![],
             fields: record.fields.clone(),
         }),
         NormalizedItem::ChoiceDef(choice) => NormalizedItem::ChoiceDef(NormalizedChoiceDef {
             name: choice.name.clone(),
+            type_params: choice.type_params.clone(),
             attributes: vec![],
             variants: choice.variants.clone(),
         }),
@@ -406,6 +410,7 @@ mod tests {
             result,
             NormalizedItem::RecordDef(NormalizedRecordDef {
                 name: "IpAddrV4".to_string(),
+                type_params: vec![],
                 attributes: vec![],
                 fields: vec![NormalizedField {
                     name: "octets".to_string(),
@@ -432,6 +437,7 @@ mod tests {
             result,
             NormalizedItem::RecordDef(NormalizedRecordDef {
                 name: "SocketAddrV4".to_string(),
+                type_params: vec![],
                 attributes: vec![],
                 fields: vec![
                     NormalizedField {
@@ -463,6 +469,7 @@ mod tests {
             result,
             NormalizedItem::ChoiceDef(NormalizedChoiceDef {
                 name: "IpAddr".to_string(),
+                type_params: vec![],
                 attributes: vec![],
                 variants: vec![
                     NormalizedVariant {
@@ -484,6 +491,7 @@ mod tests {
     fn strip_attributes_removes_record_attributes() {
         let item = NormalizedItem::RecordDef(NormalizedRecordDef {
             name: "IpAddrV4".to_string(),
+            type_params: vec![],
             attributes: vec![NormalizedAttribute {
                 name: "lang-item".to_string(),
             }],
@@ -494,6 +502,7 @@ mod tests {
             stripped,
             NormalizedItem::RecordDef(NormalizedRecordDef {
                 name: "IpAddrV4".to_string(),
+                type_params: vec![],
                 attributes: vec![],
                 fields: vec![],
             })
@@ -504,6 +513,7 @@ mod tests {
     fn strip_attributes_removes_choice_attributes() {
         let item = NormalizedItem::ChoiceDef(NormalizedChoiceDef {
             name: "IpAddr".to_string(),
+            type_params: vec![],
             attributes: vec![NormalizedAttribute {
                 name: "lang-item".to_string(),
             }],
@@ -514,6 +524,7 @@ mod tests {
             stripped,
             NormalizedItem::ChoiceDef(NormalizedChoiceDef {
                 name: "IpAddr".to_string(),
+                type_params: vec![],
                 attributes: vec![],
                 variants: vec![],
             })

@@ -10,6 +10,7 @@ pub enum NormalizedItem {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NormalizedRecordDef {
     pub name: String,
+    pub type_params: Vec<String>,
     pub attributes: Vec<NormalizedAttribute>,
     pub fields: Vec<NormalizedField>,
 }
@@ -17,6 +18,7 @@ pub struct NormalizedRecordDef {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NormalizedChoiceDef {
     pub name: String,
+    pub type_params: Vec<String>,
     pub attributes: Vec<NormalizedAttribute>,
     pub variants: Vec<NormalizedVariant>,
 }
@@ -81,6 +83,7 @@ pub fn normalize_item(item: &Item) -> NormalizedItem {
 fn normalize_record(record: &ast::RecordDef) -> NormalizedRecordDef {
     NormalizedRecordDef {
         name: record.name.clone(),
+        type_params: record.type_params.clone(),
         attributes: record.attributes.iter().map(normalize_attribute).collect(),
         fields: record.fields.iter().map(normalize_field).collect(),
     }
@@ -89,6 +92,7 @@ fn normalize_record(record: &ast::RecordDef) -> NormalizedRecordDef {
 fn normalize_choice(choice: &ast::ChoiceDef) -> NormalizedChoiceDef {
     NormalizedChoiceDef {
         name: choice.name.clone(),
+        type_params: choice.type_params.clone(),
         attributes: choice.attributes.iter().map(normalize_attribute).collect(),
         variants: choice.variants.iter().map(normalize_variant).collect(),
     }

@@ -7,6 +7,7 @@ use spin_up::ast_normalize::normalize_item;
 fn test_normalize_strips_spans() {
     let item1 = Item::RecordDef(RecordDef {
         name: "Foo".to_string(),
+        type_params: vec![],
         attributes: vec![],
         fields: vec![Field {
             name: "x".to_string(),
@@ -18,6 +19,7 @@ fn test_normalize_strips_spans() {
 
     let item2 = Item::RecordDef(RecordDef {
         name: "Foo".to_string(),
+        type_params: vec![],
         attributes: vec![],
         fields: vec![Field {
             name: "x".to_string(),
@@ -34,6 +36,7 @@ fn test_normalize_strips_spans() {
 fn test_normalize_different_items_not_equal() {
     let item1 = Item::RecordDef(RecordDef {
         name: "Foo".to_string(),
+        type_params: vec![],
         attributes: vec![],
         fields: vec![Field {
             name: "x".to_string(),
@@ -45,6 +48,7 @@ fn test_normalize_different_items_not_equal() {
 
     let item2 = Item::RecordDef(RecordDef {
         name: "Bar".to_string(),
+        type_params: vec![],
         attributes: vec![],
         fields: vec![Field {
             name: "x".to_string(),
@@ -61,6 +65,7 @@ fn test_normalize_different_items_not_equal() {
 fn test_normalize_choice() {
     let item = Item::ChoiceDef(ChoiceDef {
         name: "IpAddr".to_string(),
+        type_params: vec![],
         attributes: vec![Attribute {
             name: "lang-item".to_string(),
             span: 0..11,

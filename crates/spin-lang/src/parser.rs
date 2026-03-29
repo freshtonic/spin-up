@@ -148,18 +148,59 @@ impl Parser {
     fn parse_type_def(&mut self, attributes: Vec<Attribute>) -> Result<Item, ParseError> {
         let start = self.advance().unwrap().span.start; // consume 'type'
         let (name, _) = self.expect_ident()?;
-        self.expect_token(Token::LBrace)?;
 
-        // Determine whether this is a product type (record) or sum type (choice)
-        // by peeking at the body:
-        // - Empty body (RBrace) => empty product type
+        // Optionally parse generic type parameters: <T>, <T, U>, etc.
+        let type_params = if self.check(&Token::Lt) {
+            self.advance(); // consume '<'
+            let mut params = Vec::new();
+            loop {
+                if self.check(&Token::Gt) {
+                    break;
+                }
+                let (param, _) = self.expect_ident()?;
+                params.push(param);
+                if self.check(&Token::Comma) {
+                    self.advance();
+                } else {
+                    break;
+                }
+            }
+            self.expect_token(Token::Gt)?;
+            params
+        } else {
+            vec![]
+        };
+
+        // Handle `type Name;` (empty product type without `=`)
+        if self.check(&Token::Semicolon) {
+            let end = self.expect_token(Token::Semicolon)?;
+            return Ok(Item::RecordDef(crate::ast::RecordDef {
+                name,
+                type_params,
+                attributes,
+                fields: vec![],
+                span: start..end.end,
+            }));
+        }
+
+        self.expect_token(Token::Eq)?;
+
+        // Handle `type Name = ;` (empty product type with `=`)
+        if self.check(&Token::Semicolon) {
+            let end = self.expect_token(Token::Semicolon)?;
+            return Ok(Item::RecordDef(crate::ast::RecordDef {
+                name,
+                type_params,
+                attributes,
+                fields: vec![],
+                span: start..end.end,
+            }));
+        }
+
+        // Disambiguate product vs sum:
         // - Ident followed by Colon => product type (field: Type)
         // - Otherwise => sum type (variants)
         let is_product = match self.tokens.get(self.pos) {
-            Some(Spanned {
-                kind: Token::RBrace,
-                ..
-            }) => true,
             Some(Spanned {
                 kind: Token::Ident(_),
                 ..
@@ -175,30 +216,37 @@ impl Parser {
 
         if is_product {
             let mut fields = Vec::new();
-            while !self.check(&Token::RBrace) {
+            while !self.check(&Token::Semicolon) {
                 fields.push(self.parse_field()?);
                 if self.check(&Token::Comma) {
                     self.advance();
                 }
             }
-            let end = self.expect_token(Token::RBrace)?;
+            let end = self.expect_token(Token::Semicolon)?;
             Ok(Item::RecordDef(crate::ast::RecordDef {
                 name,
+                type_params,
                 attributes,
                 fields,
                 span: start..end.end,
             }))
         } else {
             let mut variants = Vec::new();
-            while !self.check(&Token::RBrace) {
+            loop {
+                if self.check(&Token::Semicolon) {
+                    break;
+                }
                 variants.push(self.parse_variant()?);
-                if self.check(&Token::Comma) {
+                if self.check(&Token::Pipe) {
                     self.advance();
+                } else {
+                    break;
                 }
             }
-            let end = self.expect_token(Token::RBrace)?;
+            let end = self.expect_token(Token::Semicolon)?;
             Ok(Item::ChoiceDef(crate::ast::ChoiceDef {
                 name,
+                type_params,
                 attributes,
                 variants,
                 span: start..end.end,

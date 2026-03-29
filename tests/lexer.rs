@@ -180,7 +180,7 @@ fn test_lex_attribute() {
 
 #[test]
 fn test_lex_attribute_before_type() {
-    let tokens = lex("#[lang-item]\ntype IpAddr {}").unwrap();
+    let tokens = lex("#[lang-item]\ntype IpAddr = ;").unwrap();
     let kinds: Vec<_> = tokens.iter().map(|t| &t.kind).collect();
     assert_eq!(
         kinds,
@@ -190,8 +190,8 @@ fn test_lex_attribute_before_type() {
             &Token::RBracket,
             &Token::Type,
             &Token::Ident("IpAddr".to_string()),
-            &Token::LBrace,
-            &Token::RBrace,
+            &Token::Eq,
+            &Token::Semicolon,
         ]
     );
 }

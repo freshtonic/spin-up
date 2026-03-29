@@ -83,10 +83,7 @@ Types are annotated with `#[lang-item]`, indicating they have a Rust-native impl
 
 ```
 #[lang-item]
-type IpAddr {
-  V4(IpAddrV4),
-  V6(IpAddrV6),
-}
+type IpAddr = V4(IpAddrV4) | V6(IpAddrV6);
 ```
 
 ### Rust side
