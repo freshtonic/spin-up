@@ -74,13 +74,16 @@ impl Parser {
                 Token::Interface => {
                     items.push(self.parse_interface_def()?);
                 }
+                Token::Impl => {
+                    items.push(self.parse_impl_block()?);
+                }
                 Token::Let => {
                     items.push(self.parse_let_binding()?);
                 }
                 other => {
                     let span = &self.peek().unwrap().span;
                     return Err(ParseError::Expected {
-                        expected: "import, type, interface, or let".to_string(),
+                        expected: "import, type, interface, impl, or let".to_string(),
                         found: format!("{other:?}"),
                         pos: span.start,
                     });
@@ -328,6 +331,39 @@ impl Parser {
             name,
             type_params,
             fields,
+            span: start..end.end,
+        }))
+    }
+
+    fn parse_impl_block(&mut self) -> Result<Item, ParseError> {
+        let start = self.advance().unwrap().span.start; // consume 'impl'
+        let (interface_name, _) = self.expect_ident()?;
+        self.expect_token(Token::For)?;
+        let (type_name, _) = self.expect_ident()?;
+        self.expect_token(Token::LBrace)?;
+
+        let mut mappings = Vec::new();
+        while !self.check(&Token::RBrace) {
+            let (name, name_span) = self.expect_ident()?;
+            self.expect_token(Token::Colon)?;
+            let value = self.parse_expr()?;
+            let end = self.previous_span_end();
+            mappings.push(crate::ast::FieldMapping {
+                name,
+                value,
+                span: name_span.start..end,
+            });
+            if self.check(&Token::Comma) {
+                self.advance();
+            }
+        }
+
+        let end = self.expect_token(Token::RBrace)?;
+
+        Ok(Item::ImplBlock(crate::ast::ImplBlock {
+            interface_name,
+            type_name,
+            mappings,
             span: start..end.end,
         }))
     }

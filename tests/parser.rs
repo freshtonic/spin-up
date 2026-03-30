@@ -1074,3 +1074,35 @@ fn test_interface_field_construction() {
     assert_eq!(field.name, "host");
     assert_eq!(field.attributes.len(), 1);
 }
+
+// --- Phase 3a Task 8: Parser — Impl Blocks ---
+
+#[test]
+fn test_parse_impl_block() {
+    let input = "impl Endpoint for MyServer {\n  host: self.hostname,\n  port: self.config.port,\n}";
+    let module = parse(input).unwrap();
+    assert_eq!(module.items.len(), 1);
+    match &module.items[0] {
+        Item::ImplBlock(i) => {
+            assert_eq!(i.interface_name, "Endpoint");
+            assert_eq!(i.type_name, "MyServer");
+            assert_eq!(i.mappings.len(), 2);
+            assert_eq!(i.mappings[0].name, "host");
+            assert_eq!(i.mappings[1].name, "port");
+        }
+        other => panic!("expected ImplBlock, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_impl_block_with_expression() {
+    let input = "impl Endpoint for MyServer {\n  greeting: \"hello\",\n}";
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::ImplBlock(i) => {
+            assert_eq!(i.mappings.len(), 1);
+            assert!(matches!(&i.mappings[0].value, Expr::StringLit(s) if s == "hello"));
+        }
+        other => panic!("expected ImplBlock, got {other:?}"),
+    }
+}
