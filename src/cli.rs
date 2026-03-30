@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
@@ -18,7 +20,10 @@ pub enum Command {
     /// Tear down a running application and all its dependencies
     Down,
     /// Run static analysis on .spin files
-    Check,
+    Check {
+        /// Path to the .spin file to check
+        file: PathBuf,
+    },
     /// Internal plumbing commands (use --plumbing to see in help)
     #[command(hide = true)]
     Plumbing {

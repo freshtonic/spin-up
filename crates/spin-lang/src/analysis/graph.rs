@@ -159,10 +159,7 @@ fn topological_sort(
     for (node, deps) in edges {
         *in_degree.entry(node.as_str()).or_insert(0) += deps.len();
         for dep in deps {
-            reverse
-                .entry(dep.as_str())
-                .or_default()
-                .push(node.as_str());
+            reverse.entry(dep.as_str()).or_default().push(node.as_str());
         }
     }
 

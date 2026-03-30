@@ -80,9 +80,40 @@ fn test_plumbing_kill_subcommand_exists() {
 
 #[test]
 fn test_spin_check_subcommand_exists() {
+    // spin check requires a file argument, so test with --help
     Command::cargo_bin("spin")
         .unwrap()
-        .arg("check")
+        .args(["check", "--help"])
         .assert()
-        .success();
+        .success()
+        .stdout(predicate::str::contains("file"));
+}
+
+#[test]
+fn test_spin_check_valid_file() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let spin_file = tmp.path().join("test.spin");
+    std::fs::write(&spin_file, "type Foo = x: u32;").unwrap();
+
+    Command::cargo_bin("spin")
+        .unwrap()
+        .args(["check", spin_file.to_str().unwrap()])
+        .env("SPIN_PATH", tmp.path().to_str().unwrap())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No errors found"));
+}
+
+#[test]
+fn test_spin_check_with_error() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let spin_file = tmp.path().join("test.spin");
+    std::fs::write(&spin_file, "import nonexistent\ntype Foo = x: u32;").unwrap();
+
+    Command::cargo_bin("spin")
+        .unwrap()
+        .args(["check", spin_file.to_str().unwrap()])
+        .env("SPIN_PATH", tmp.path().to_str().unwrap())
+        .assert()
+        .failure();
 }
