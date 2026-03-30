@@ -1,3 +1,4 @@
+pub mod analysis;
 pub mod ast;
 pub mod ast_normalize;
 pub mod builtins;
