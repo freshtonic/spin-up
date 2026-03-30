@@ -132,3 +132,157 @@ fn test_it_with_bool_literal_is_invalid() {
         DiagnosticKind::InvalidPredicate { .. }
     ));
 }
+
+// --- Value resolution / satisfiability tests ---
+
+#[test]
+fn test_eval_satisfiable_constraint() {
+    let source = r#"let x = Foo(count: it >= 5 && it < 100)"#;
+    let module = parser::parse(source).unwrap();
+    let mut registry = TypeRegistry::new();
+    registry.register_module("test", &module);
+
+    let diags = check_constraints(&registry);
+    assert!(
+        diags.is_ok(),
+        "satisfiable constraint should pass: {:?}",
+        diags.errors()
+    );
+}
+
+#[test]
+fn test_eval_unsatisfiable_constraint() {
+    let source = r#"let x = Foo(count: it >= 100 && it < 5)"#;
+    let module = parser::parse(source).unwrap();
+    let mut registry = TypeRegistry::new();
+    registry.register_module("test", &module);
+
+    let diags = check_constraints(&registry);
+    assert!(!diags.is_ok());
+    assert!(matches!(
+        &diags.errors()[0].kind,
+        DiagnosticKind::ConstraintViolation { .. }
+    ));
+}
+
+#[test]
+fn test_eval_equality_constraint() {
+    let source = r#"let x = Foo(count: it == 42)"#;
+    let module = parser::parse(source).unwrap();
+    let mut registry = TypeRegistry::new();
+    registry.register_module("test", &module);
+
+    let diags = check_constraints(&registry);
+    assert!(diags.is_ok());
+}
+
+#[test]
+fn test_eval_contradictory_equality() {
+    let source = r#"let x = Foo(count: it == 5 && it == 10)"#;
+    let module = parser::parse(source).unwrap();
+    let mut registry = TypeRegistry::new();
+    registry.register_module("test", &module);
+
+    let diags = check_constraints(&registry);
+    assert!(!diags.is_ok());
+    assert!(matches!(
+        &diags.errors()[0].kind,
+        DiagnosticKind::ConstraintViolation { .. }
+    ));
+}
+
+#[test]
+fn test_eval_equality_with_compatible_range() {
+    // it == 42 && it >= 10 && it < 100 — 42 satisfies all bounds
+    let source = r#"let x = Foo(count: it == 42 && it >= 10 && it < 100)"#;
+    let module = parser::parse(source).unwrap();
+    let mut registry = TypeRegistry::new();
+    registry.register_module("test", &module);
+
+    let diags = check_constraints(&registry);
+    assert!(
+        diags.is_ok(),
+        "equality within range should pass: {:?}",
+        diags.errors()
+    );
+}
+
+#[test]
+fn test_eval_equality_outside_range() {
+    // it == 200 && it < 100 — 200 does not satisfy it < 100
+    let source = r#"let x = Foo(count: it == 200 && it < 100)"#;
+    let module = parser::parse(source).unwrap();
+    let mut registry = TypeRegistry::new();
+    registry.register_module("test", &module);
+
+    let diags = check_constraints(&registry);
+    assert!(!diags.is_ok());
+    assert!(matches!(
+        &diags.errors()[0].kind,
+        DiagnosticKind::ConstraintViolation { .. }
+    ));
+}
+
+#[test]
+fn test_eval_or_constraint_satisfiable() {
+    // it == 5 || it == 10 — at least one branch is satisfiable
+    let source = r#"let x = Foo(count: it == 5 || it == 10)"#;
+    let module = parser::parse(source).unwrap();
+    let mut registry = TypeRegistry::new();
+    registry.register_module("test", &module);
+
+    let diags = check_constraints(&registry);
+    assert!(
+        diags.is_ok(),
+        "or constraint should pass: {:?}",
+        diags.errors()
+    );
+}
+
+#[test]
+fn test_eval_boundary_equal_lower_inclusive() {
+    // it >= 5 && it <= 5 — exactly 5 satisfies both
+    let source = r#"let x = Foo(count: it >= 5 && it <= 5)"#;
+    let module = parser::parse(source).unwrap();
+    let mut registry = TypeRegistry::new();
+    registry.register_module("test", &module);
+
+    let diags = check_constraints(&registry);
+    assert!(
+        diags.is_ok(),
+        "exact boundary constraint should pass: {:?}",
+        diags.errors()
+    );
+}
+
+#[test]
+fn test_eval_exclusive_boundary_unsatisfiable() {
+    // it > 5 && it < 5 — no integer satisfies both
+    let source = r#"let x = Foo(count: it > 5 && it < 5)"#;
+    let module = parser::parse(source).unwrap();
+    let mut registry = TypeRegistry::new();
+    registry.register_module("test", &module);
+
+    let diags = check_constraints(&registry);
+    assert!(!diags.is_ok());
+    assert!(matches!(
+        &diags.errors()[0].kind,
+        DiagnosticKind::ConstraintViolation { .. }
+    ));
+}
+
+#[test]
+fn test_eval_not_equal_with_range() {
+    // it != 50 && it >= 1 && it <= 100 — satisfiable (e.g., 1..50, 51..100)
+    let source = r#"let x = Foo(count: it != 50 && it >= 1 && it <= 100)"#;
+    let module = parser::parse(source).unwrap();
+    let mut registry = TypeRegistry::new();
+    registry.register_module("test", &module);
+
+    let diags = check_constraints(&registry);
+    assert!(
+        diags.is_ok(),
+        "not-equal within range should pass: {:?}",
+        diags.errors()
+    );
+}
