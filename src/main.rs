@@ -38,8 +38,9 @@ fn main() {
             if diagnostics.is_ok() {
                 println!("\u{2713} No errors found");
             } else {
-                for error in diagnostics.errors() {
-                    eprintln!("error: {:?}", error.kind);
+                let reports = diagnostics.into_reports(&resolve_result.sources);
+                for report in &reports {
+                    eprintln!("{:?}", miette::Report::new(report.clone()));
                 }
                 std::process::exit(1);
             }

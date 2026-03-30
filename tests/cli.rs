@@ -117,3 +117,33 @@ fn test_spin_check_with_error() {
         .assert()
         .failure();
 }
+
+#[test]
+fn test_spin_check_error_shows_source_filename() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let spin_file = tmp.path().join("broken.spin");
+    std::fs::write(&spin_file, "import nonexistent").unwrap();
+
+    Command::cargo_bin("spin")
+        .unwrap()
+        .args(["check", spin_file.to_str().unwrap()])
+        .env("SPIN_PATH", tmp.path().to_str().unwrap())
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("unresolved import"));
+}
+
+#[test]
+fn test_spin_check_error_shows_miette_diagnostic() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let spin_file = tmp.path().join("broken.spin");
+    std::fs::write(&spin_file, "import nonexistent").unwrap();
+
+    Command::cargo_bin("spin")
+        .unwrap()
+        .args(["check", spin_file.to_str().unwrap()])
+        .env("SPIN_PATH", tmp.path().to_str().unwrap())
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("module not found"));
+}

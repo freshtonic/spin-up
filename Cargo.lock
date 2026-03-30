@@ -5202,6 +5202,7 @@ dependencies = [
 name = "spin-lang"
 version = "0.1.0"
 dependencies = [
+ "miette 7.6.0",
  "thiserror 2.0.18",
 ]
 

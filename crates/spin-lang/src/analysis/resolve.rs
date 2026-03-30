@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use crate::analysis::registry::TypeRegistry;
@@ -10,6 +10,17 @@ use crate::spin_path::SpinPath;
 pub struct ResolveResult {
     pub registry: TypeRegistry,
     pub diagnostics: Diagnostics,
+    /// Map from source name (e.g. file path) to source text, used for miette rendering.
+    pub sources: HashMap<String, String>,
+}
+
+/// Mutable state threaded through recursive module resolution.
+struct ResolveContext<'a> {
+    spin_path: &'a SpinPath,
+    registry: &'a mut TypeRegistry,
+    diagnostics: &'a mut Diagnostics,
+    visited: &'a mut HashSet<String>,
+    sources: &'a mut HashMap<String, String>,
 }
 
 /// Resolve all modules reachable from the entry point, registering their
@@ -21,6 +32,7 @@ pub fn resolve_modules(entry_path: &Path, spin_path_dirs: &[PathBuf]) -> Resolve
     let mut registry = TypeRegistry::new();
     let mut diagnostics = Diagnostics::new();
     let mut visited: HashSet<String> = HashSet::new();
+    let mut sources: HashMap<String, String> = HashMap::new();
 
     // Build SpinPath from the provided directories.
     let spin_path_str = spin_path_dirs
@@ -42,6 +54,7 @@ pub fn resolve_modules(entry_path: &Path, spin_path_dirs: &[PathBuf]) -> Resolve
             return ResolveResult {
                 registry,
                 diagnostics,
+                sources,
             };
         }
     };
@@ -61,6 +74,7 @@ pub fn resolve_modules(entry_path: &Path, spin_path_dirs: &[PathBuf]) -> Resolve
             return ResolveResult {
                 registry,
                 diagnostics,
+                sources,
             };
         }
     };
@@ -71,19 +85,20 @@ pub fn resolve_modules(entry_path: &Path, spin_path_dirs: &[PathBuf]) -> Resolve
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_else(|| "main".to_string());
 
-    resolve_module_recursive(
-        &entry_module_name,
-        &source,
-        &source_name,
-        &spin_path,
-        &mut registry,
-        &mut diagnostics,
-        &mut visited,
-    );
+    let mut ctx = ResolveContext {
+        spin_path: &spin_path,
+        registry: &mut registry,
+        diagnostics: &mut diagnostics,
+        visited: &mut visited,
+        sources: &mut sources,
+    };
+
+    resolve_module_recursive(&entry_module_name, &source, &source_name, &mut ctx);
 
     ResolveResult {
         registry,
         diagnostics,
+        sources,
     }
 }
 
@@ -91,20 +106,19 @@ fn resolve_module_recursive(
     module_name: &str,
     source: &str,
     source_name: &str,
-    spin_path: &SpinPath,
-    registry: &mut TypeRegistry,
-    diagnostics: &mut Diagnostics,
-    visited: &mut HashSet<String>,
+    ctx: &mut ResolveContext<'_>,
 ) {
-    if visited.contains(module_name) {
+    if ctx.visited.contains(module_name) {
         return;
     }
-    visited.insert(module_name.to_string());
+    ctx.visited.insert(module_name.to_string());
+    ctx.sources
+        .insert(source_name.to_string(), source.to_string());
 
     let module = match parser::parse(source) {
         Ok(m) => m,
         Err(_e) => {
-            diagnostics.error(
+            ctx.diagnostics.error(
                 DiagnosticKind::UnresolvedImport {
                     module: format!("parse error in module '{module_name}'"),
                 },
@@ -120,26 +134,23 @@ fn resolve_module_recursive(
     for import in &module.imports {
         let imported_name = &import.module_name;
 
-        if visited.contains(imported_name) {
+        if ctx.visited.contains(imported_name) {
             // Already resolved (or currently resolving -- circular).
             continue;
         }
 
-        match spin_path.resolve_source(imported_name) {
+        match ctx.spin_path.resolve_source(imported_name) {
             Ok(imported_source) => {
                 let imported_source_name = format!("{imported_name}.spin");
                 resolve_module_recursive(
                     imported_name,
                     &imported_source,
                     &imported_source_name,
-                    spin_path,
-                    registry,
-                    diagnostics,
-                    visited,
+                    ctx,
                 );
             }
             Err(_) => {
-                diagnostics.error(
+                ctx.diagnostics.error(
                     DiagnosticKind::UnresolvedImport {
                         module: imported_name.clone(),
                     },
@@ -150,5 +161,5 @@ fn resolve_module_recursive(
         }
     }
 
-    registry.register_module(module_name, &module);
+    ctx.registry.register_module(module_name, &module);
 }
