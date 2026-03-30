@@ -66,6 +66,11 @@ impl TypeRegistry {
         &self.impls
     }
 
+    /// Return all let-bindings in the registry.
+    pub fn all_bindings(&self) -> &HashMap<String, LetBinding> {
+        &self.bindings
+    }
+
     /// Return all impl blocks whose implementing type matches `type_name`.
     pub fn lookup_impls_for_type(&self, type_name: &str) -> Vec<&ImplBlock> {
         self.impls
