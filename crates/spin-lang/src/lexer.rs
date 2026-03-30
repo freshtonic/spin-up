@@ -13,6 +13,11 @@ pub enum Token {
     Map,
     Filter,
     Self_,
+    Interface,
+    Impl,
+    For,
+    Let,
+    It,
 
     // Primitive type keywords
     Bool,
@@ -258,6 +263,11 @@ pub fn lex(input: &str) -> Result<Vec<Spanned>, LexError> {
                     "f64" => Token::F64,
                     "str" => Token::Str,
                     "type" => Token::Type,
+                    "interface" => Token::Interface,
+                    "impl" => Token::Impl,
+                    "for" => Token::For,
+                    "let" => Token::Let,
+                    "it" => Token::It,
                     _ => Token::Ident(value),
                 };
                 tokens.push(Spanned {

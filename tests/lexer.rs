@@ -193,3 +193,19 @@ fn test_lex_attribute_before_type() {
         ]
     );
 }
+
+#[test]
+fn test_lex_phase3_keywords() {
+    let tokens = lex("interface impl for let it").unwrap();
+    let kinds: Vec<_> = tokens.iter().map(|t| &t.kind).collect();
+    assert_eq!(
+        kinds,
+        &[
+            &Token::Interface,
+            &Token::Impl,
+            &Token::For,
+            &Token::Let,
+            &Token::It,
+        ]
+    );
+}
