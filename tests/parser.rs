@@ -1,4 +1,8 @@
-use spin_up::ast::{Attribute, ChoiceDef, Item, PrimitiveType, RecordDef, TypeExpr, Variant};
+use spin_up::ast::{
+    AsInterfaceBlock, Attribute, BinaryOp, ChoiceDef, Expr, FieldInit, FieldMapping,
+    ImplBlock, InterfaceDef, InterfaceField, Item, LetBinding, PrimitiveType, RecordDef, TypeExpr,
+    UnaryOp, Variant,
+};
 use spin_up::parser::parse;
 
 // Note: The `resource` keyword has been removed. Resource definitions now use
@@ -637,4 +641,392 @@ fn test_parse_unit_type() {
         }
         other => panic!("expected RecordDef, got {other:?}"),
     }
+}
+
+// --- Phase 3a Task 4: Expression AST types ---
+
+#[test]
+fn test_expr_string_lit_construction() {
+    let expr = Expr::StringLit("hello".to_string());
+    assert!(matches!(expr, Expr::StringLit(s) if s == "hello"));
+}
+
+#[test]
+fn test_expr_number_construction() {
+    let expr = Expr::Number("42".to_string());
+    assert!(matches!(expr, Expr::Number(n) if n == "42"));
+}
+
+#[test]
+fn test_expr_bool_lit_construction() {
+    let expr_true = Expr::BoolLit(true);
+    let expr_false = Expr::BoolLit(false);
+    assert!(matches!(expr_true, Expr::BoolLit(true)));
+    assert!(matches!(expr_false, Expr::BoolLit(false)));
+}
+
+#[test]
+fn test_expr_ident_construction() {
+    let expr = Expr::Ident("my_var".to_string());
+    assert!(matches!(expr, Expr::Ident(name) if name == "my_var"));
+}
+
+#[test]
+fn test_expr_field_access_construction() {
+    let expr = Expr::FieldAccess {
+        object: Box::new(Expr::Self_),
+        field: "port".to_string(),
+    };
+    match expr {
+        Expr::FieldAccess { object, field } => {
+            assert!(matches!(*object, Expr::Self_));
+            assert_eq!(field, "port");
+        }
+        other => panic!("expected FieldAccess, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_expr_type_construction() {
+    let expr = Expr::TypeConstruction {
+        type_name: "Proxy".to_string(),
+        fields: vec![FieldInit {
+            name: "host".to_string(),
+            value: Expr::StringLit("localhost".to_string()),
+            span: 0..10,
+        }],
+        as_interfaces: vec![],
+    };
+    match expr {
+        Expr::TypeConstruction {
+            type_name, fields, ..
+        } => {
+            assert_eq!(type_name, "Proxy");
+            assert_eq!(fields.len(), 1);
+            assert_eq!(fields[0].name, "host");
+        }
+        other => panic!("expected TypeConstruction, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_expr_type_construction_with_as_interface() {
+    let expr = Expr::TypeConstruction {
+        type_name: "MyServer".to_string(),
+        fields: vec![],
+        as_interfaces: vec![AsInterfaceBlock {
+            interface_name: "Endpoint".to_string(),
+            fields: vec![FieldInit {
+                name: "port".to_string(),
+                value: Expr::Number("8080".to_string()),
+                span: 0..10,
+            }],
+            span: 0..30,
+        }],
+    };
+    match expr {
+        Expr::TypeConstruction {
+            as_interfaces, ..
+        } => {
+            assert_eq!(as_interfaces.len(), 1);
+            assert_eq!(as_interfaces[0].interface_name, "Endpoint");
+            assert_eq!(as_interfaces[0].fields.len(), 1);
+        }
+        other => panic!("expected TypeConstruction, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_expr_variant_construction() {
+    let expr = Expr::VariantConstruction {
+        type_name: "SocketAddr".to_string(),
+        variant: "V4".to_string(),
+        args: vec![Expr::Ident("addr".to_string())],
+    };
+    match expr {
+        Expr::VariantConstruction {
+            type_name,
+            variant,
+            args,
+        } => {
+            assert_eq!(type_name, "SocketAddr");
+            assert_eq!(variant, "V4");
+            assert_eq!(args.len(), 1);
+        }
+        other => panic!("expected VariantConstruction, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_expr_named_construction() {
+    let expr = Expr::NamedConstruction {
+        type_name: "SemVer".to_string(),
+        fields: vec![FieldInit {
+            name: "major".to_string(),
+            value: Expr::Number("17".to_string()),
+            span: 0..10,
+        }],
+    };
+    match expr {
+        Expr::NamedConstruction { type_name, fields } => {
+            assert_eq!(type_name, "SemVer");
+            assert_eq!(fields.len(), 1);
+        }
+        other => panic!("expected NamedConstruction, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_expr_binary_op_construction() {
+    let expr = Expr::BinaryOp {
+        left: Box::new(Expr::It),
+        op: BinaryOp::Gte,
+        right: Box::new(Expr::Number("15".to_string())),
+    };
+    match expr {
+        Expr::BinaryOp { left, op, right } => {
+            assert!(matches!(*left, Expr::It));
+            assert_eq!(op, BinaryOp::Gte);
+            assert!(matches!(*right, Expr::Number(n) if n == "15"));
+        }
+        other => panic!("expected BinaryOp, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_expr_unary_op_construction() {
+    let expr = Expr::UnaryOp {
+        op: UnaryOp::Not,
+        operand: Box::new(Expr::BoolLit(true)),
+    };
+    match expr {
+        Expr::UnaryOp { op, operand } => {
+            assert_eq!(op, UnaryOp::Not);
+            assert!(matches!(*operand, Expr::BoolLit(true)));
+        }
+        other => panic!("expected UnaryOp, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_expr_it_construction() {
+    let expr = Expr::It;
+    assert!(matches!(expr, Expr::It));
+}
+
+#[test]
+fn test_expr_self_construction() {
+    let expr = Expr::Self_;
+    assert!(matches!(expr, Expr::Self_));
+}
+
+#[test]
+fn test_expr_none_construction() {
+    let expr = Expr::None_;
+    assert!(matches!(expr, Expr::None_));
+}
+
+#[test]
+fn test_binary_op_equality() {
+    assert_eq!(BinaryOp::Eq, BinaryOp::Eq);
+    assert_eq!(BinaryOp::NotEq, BinaryOp::NotEq);
+    assert_eq!(BinaryOp::Lt, BinaryOp::Lt);
+    assert_eq!(BinaryOp::Gt, BinaryOp::Gt);
+    assert_eq!(BinaryOp::Lte, BinaryOp::Lte);
+    assert_eq!(BinaryOp::Gte, BinaryOp::Gte);
+    assert_eq!(BinaryOp::And, BinaryOp::And);
+    assert_eq!(BinaryOp::Or, BinaryOp::Or);
+    assert_ne!(BinaryOp::Eq, BinaryOp::NotEq);
+}
+
+#[test]
+fn test_unary_op_equality() {
+    assert_eq!(UnaryOp::Not, UnaryOp::Not);
+}
+
+#[test]
+fn test_field_init_construction() {
+    let fi = FieldInit {
+        name: "port".to_string(),
+        value: Expr::Number("8080".to_string()),
+        span: 0..10,
+    };
+    assert_eq!(fi.name, "port");
+    assert_eq!(fi.span, 0..10);
+}
+
+// --- Phase 3a Task 5: Interface, Impl, Let, and Field Attributes ---
+
+#[test]
+fn test_item_interface_def_variant() {
+    let item = Item::InterfaceDef(InterfaceDef {
+        name: "Endpoint".to_string(),
+        type_params: vec![],
+        fields: vec![],
+        span: 0..30,
+    });
+    assert!(matches!(item, Item::InterfaceDef(_)));
+}
+
+#[test]
+fn test_interface_def_with_fields() {
+    let iface = InterfaceDef {
+        name: "Endpoint".to_string(),
+        type_params: vec![],
+        fields: vec![
+            InterfaceField {
+                name: "host".to_string(),
+                ty: TypeExpr::Primitive(PrimitiveType::Str),
+                attributes: vec![],
+                span: 0..10,
+            },
+            InterfaceField {
+                name: "port".to_string(),
+                ty: TypeExpr::Primitive(PrimitiveType::U16),
+                attributes: vec![Attribute {
+                    name: "default".to_string(),
+                    args: Some("5432".to_string()),
+                    span: 0..15,
+                }],
+                span: 11..20,
+            },
+        ],
+        span: 0..40,
+    };
+    assert_eq!(iface.name, "Endpoint");
+    assert_eq!(iface.fields.len(), 2);
+    assert_eq!(iface.fields[0].name, "host");
+    assert!(iface.fields[0].attributes.is_empty());
+    assert_eq!(iface.fields[1].attributes.len(), 1);
+    assert_eq!(iface.fields[1].attributes[0].name, "default");
+}
+
+#[test]
+fn test_interface_def_with_type_params() {
+    let iface = InterfaceDef {
+        name: "Container".to_string(),
+        type_params: vec!["T".to_string()],
+        fields: vec![InterfaceField {
+            name: "items".to_string(),
+            ty: TypeExpr::Named("T".to_string()),
+            attributes: vec![],
+            span: 0..10,
+        }],
+        span: 0..30,
+    };
+    assert_eq!(iface.type_params, vec!["T"]);
+}
+
+#[test]
+fn test_item_impl_block_variant() {
+    let item = Item::ImplBlock(ImplBlock {
+        interface_name: "Endpoint".to_string(),
+        type_name: "MyServer".to_string(),
+        mappings: vec![],
+        span: 0..30,
+    });
+    assert!(matches!(item, Item::ImplBlock(_)));
+}
+
+#[test]
+fn test_impl_block_with_mappings() {
+    let impl_block = ImplBlock {
+        interface_name: "Endpoint".to_string(),
+        type_name: "MyServer".to_string(),
+        mappings: vec![
+            FieldMapping {
+                name: "host".to_string(),
+                value: Expr::FieldAccess {
+                    object: Box::new(Expr::Self_),
+                    field: "hostname".to_string(),
+                },
+                span: 0..20,
+            },
+            FieldMapping {
+                name: "port".to_string(),
+                value: Expr::FieldAccess {
+                    object: Box::new(Expr::FieldAccess {
+                        object: Box::new(Expr::Self_),
+                        field: "config".to_string(),
+                    }),
+                    field: "port".to_string(),
+                },
+                span: 21..50,
+            },
+        ],
+        span: 0..60,
+    };
+    assert_eq!(impl_block.interface_name, "Endpoint");
+    assert_eq!(impl_block.type_name, "MyServer");
+    assert_eq!(impl_block.mappings.len(), 2);
+    assert_eq!(impl_block.mappings[0].name, "host");
+    assert_eq!(impl_block.mappings[1].name, "port");
+}
+
+#[test]
+fn test_item_let_binding_variant() {
+    let item = Item::LetBinding(LetBinding {
+        name: "proxy".to_string(),
+        ty: None,
+        value: Expr::StringLit("hello".to_string()),
+        span: 0..20,
+    });
+    assert!(matches!(item, Item::LetBinding(_)));
+}
+
+#[test]
+fn test_let_binding_with_type_annotation() {
+    let binding = LetBinding {
+        name: "port".to_string(),
+        ty: Some(TypeExpr::Primitive(PrimitiveType::U16)),
+        value: Expr::Number("5432".to_string()),
+        span: 0..20,
+    };
+    assert_eq!(binding.name, "port");
+    assert!(binding.ty.is_some());
+    match binding.ty.unwrap() {
+        TypeExpr::Primitive(PrimitiveType::U16) => {}
+        other => panic!("expected Primitive(U16), got {other:?}"),
+    }
+}
+
+#[test]
+fn test_let_binding_without_type_annotation() {
+    let binding = LetBinding {
+        name: "name".to_string(),
+        ty: None,
+        value: Expr::StringLit("hello".to_string()),
+        span: 0..20,
+    };
+    assert!(binding.ty.is_none());
+}
+
+#[test]
+fn test_field_mapping_construction() {
+    let mapping = FieldMapping {
+        name: "listen_on".to_string(),
+        value: Expr::FieldAccess {
+            object: Box::new(Expr::Self_),
+            field: "listen_on".to_string(),
+        },
+        span: 0..30,
+    };
+    assert_eq!(mapping.name, "listen_on");
+    assert_eq!(mapping.span, 0..30);
+}
+
+#[test]
+fn test_interface_field_construction() {
+    let field = InterfaceField {
+        name: "host".to_string(),
+        ty: TypeExpr::Primitive(PrimitiveType::Str),
+        attributes: vec![Attribute {
+            name: "default".to_string(),
+            args: Some("\"localhost\"".to_string()),
+            span: 0..20,
+        }],
+        span: 0..30,
+    };
+    assert_eq!(field.name, "host");
+    assert_eq!(field.attributes.len(), 1);
 }

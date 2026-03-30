@@ -68,6 +68,15 @@ pub fn normalize_item(item: &Item) -> NormalizedItem {
     match item {
         Item::RecordDef(record) => NormalizedItem::RecordDef(normalize_record(record)),
         Item::ChoiceDef(choice) => NormalizedItem::ChoiceDef(normalize_choice(choice)),
+        Item::InterfaceDef(_) => {
+            panic!("normalization of InterfaceDef is not yet implemented")
+        }
+        Item::ImplBlock(_) => {
+            panic!("normalization of ImplBlock is not yet implemented")
+        }
+        Item::LetBinding(_) => {
+            panic!("normalization of LetBinding is not yet implemented")
+        }
     }
 }
 

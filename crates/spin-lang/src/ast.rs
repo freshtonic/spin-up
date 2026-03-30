@@ -27,6 +27,9 @@ pub struct Attribute {
 pub enum Item {
     RecordDef(RecordDef),
     ChoiceDef(ChoiceDef),
+    InterfaceDef(InterfaceDef),
+    ImplBlock(ImplBlock),
+    LetBinding(LetBinding),
 }
 
 /// A record definition (product type): `type Tls = port: u16, key: str;`
@@ -86,6 +89,140 @@ pub enum TypeExpr {
     Tuple(Vec<TypeExpr>),
     /// Unit type `()`
     Unit,
+}
+
+/// An expression
+#[derive(Debug, Clone)]
+pub enum Expr {
+    /// String literal: `"hello"`
+    StringLit(String),
+    /// Numeric literal: `42`, `3.14`, `0xff`
+    Number(String),
+    /// Boolean literal: `true`, `false`
+    BoolLit(bool),
+    /// Identifier reference: `proxy`, `my_var`
+    Ident(String),
+    /// Field access: `self.port`, `self.endpoint.user`
+    FieldAccess { object: Box<Expr>, field: String },
+    /// Type construction: `Proxy { field: value, ... }`
+    TypeConstruction {
+        type_name: String,
+        fields: Vec<FieldInit>,
+        as_interfaces: Vec<AsInterfaceBlock>,
+    },
+    /// Variant construction: `SocketAddr::V4(...)` or `Some(x)`
+    VariantConstruction {
+        type_name: String,
+        variant: String,
+        args: Vec<Expr>,
+    },
+    /// Function/variant call with named args: `SemVer(major: 17)`
+    NamedConstruction {
+        type_name: String,
+        fields: Vec<FieldInit>,
+    },
+    /// Binary operation: `it >= 15`, `it < 17`, `a && b`
+    BinaryOp {
+        left: Box<Expr>,
+        op: BinaryOp,
+        right: Box<Expr>,
+    },
+    /// Unary operation: `!x`
+    UnaryOp { op: UnaryOp, operand: Box<Expr> },
+    /// The `it` keyword (value being constrained)
+    It,
+    /// The `self` keyword
+    Self_,
+    /// `None` literal (sugar for `Option::None`)
+    None_,
+}
+
+/// A field initializer: `name: expr`
+#[derive(Debug, Clone)]
+pub struct FieldInit {
+    pub name: String,
+    pub value: Expr,
+    pub span: Range<usize>,
+}
+
+/// An `<as Interface> { field: value, ... }` block within a type construction
+#[derive(Debug, Clone)]
+pub struct AsInterfaceBlock {
+    pub interface_name: String,
+    pub fields: Vec<FieldInit>,
+    pub span: Range<usize>,
+}
+
+/// Binary operators
+#[derive(Debug, Clone, PartialEq)]
+pub enum BinaryOp {
+    /// `==`
+    Eq,
+    /// `!=`
+    NotEq,
+    /// `<`
+    Lt,
+    /// `>`
+    Gt,
+    /// `<=`
+    Lte,
+    /// `>=`
+    Gte,
+    /// `&&`
+    And,
+    /// `||`
+    Or,
+}
+
+/// Unary operators
+#[derive(Debug, Clone, PartialEq)]
+pub enum UnaryOp {
+    /// `!`
+    Not,
+}
+
+/// An interface definition: `interface Endpoint = host: str, port: u16;`
+#[derive(Debug, Clone)]
+pub struct InterfaceDef {
+    pub name: String,
+    pub type_params: Vec<String>,
+    pub fields: Vec<InterfaceField>,
+    pub span: Range<usize>,
+}
+
+/// A field in an interface definition, which can have attributes like `#[default(...)]`
+#[derive(Debug, Clone)]
+pub struct InterfaceField {
+    pub name: String,
+    pub ty: TypeExpr,
+    pub attributes: Vec<Attribute>,
+    pub span: Range<usize>,
+}
+
+/// An impl block: `impl Interface for Type { field: expr, ... }`
+#[derive(Debug, Clone)]
+pub struct ImplBlock {
+    pub interface_name: String,
+    pub type_name: String,
+    pub mappings: Vec<FieldMapping>,
+    pub span: Range<usize>,
+}
+
+/// A field mapping in an impl block: `listen_on: self.listen_on`
+#[derive(Debug, Clone)]
+pub struct FieldMapping {
+    pub name: String,
+    pub value: Expr,
+    pub span: Range<usize>,
+}
+
+/// A let binding: `let proxy = Proxy { ... }`
+#[derive(Debug, Clone)]
+pub struct LetBinding {
+    pub name: String,
+    pub ty: Option<TypeExpr>,
+    pub value: Expr,
+    pub span: Range<usize>,
 }
 
 /// Primitive types built into the language
