@@ -371,13 +371,21 @@ impl Parser {
     fn parse_let_binding(&mut self) -> Result<Item, ParseError> {
         let start = self.advance().unwrap().span.start; // consume 'let'
         let (name, _) = self.expect_ident()?;
+
+        let ty = if self.check(&Token::Colon) {
+            self.advance(); // consume ':'
+            Some(self.parse_type_expr()?)
+        } else {
+            None
+        };
+
         self.expect_token(Token::Eq)?;
         let value = self.parse_expr()?;
         let end = self.previous_span_end();
 
         Ok(Item::LetBinding(LetBinding {
             name,
-            ty: None,
+            ty,
             value,
             span: start..end,
         }))
@@ -1173,6 +1181,38 @@ mod tests {
                 }
                 other => panic!("expected Call, got {other:?}"),
             },
+            other => panic!("expected LetBinding, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_let_binding_with_type_annotation() {
+        let input = "let port: u16 = 5432";
+        let module = parse(input).unwrap();
+        match &module.items[0] {
+            Item::LetBinding(l) => {
+                assert_eq!(l.name, "port");
+                assert!(l.ty.is_some());
+                assert!(matches!(
+                    l.ty.as_ref().unwrap(),
+                    crate::ast::TypeExpr::Primitive(crate::ast::PrimitiveType::U16)
+                ));
+                assert!(matches!(&l.value, Expr::Number(n) if n == "5432"));
+            }
+            other => panic!("expected LetBinding, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_let_binding_without_type_annotation() {
+        let input = "let port = 5432";
+        let module = parse(input).unwrap();
+        match &module.items[0] {
+            Item::LetBinding(l) => {
+                assert_eq!(l.name, "port");
+                assert!(l.ty.is_none());
+                assert!(matches!(&l.value, Expr::Number(n) if n == "5432"));
+            }
             other => panic!("expected LetBinding, got {other:?}"),
         }
     }
