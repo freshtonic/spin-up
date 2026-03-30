@@ -16,6 +16,9 @@ pub struct TypeRegistry {
     types: HashMap<String, TypeDef>,
     interfaces: HashMap<String, InterfaceDef>,
     bindings: HashMap<String, LetBinding>,
+    /// All bindings grouped by name, preserving definition order.
+    /// Used by let-redefinition checking to compare types across redefinitions.
+    all_bindings_by_name: HashMap<String, Vec<LetBinding>>,
     impls: Vec<ImplBlock>,
 }
 
@@ -44,6 +47,10 @@ impl TypeRegistry {
                 }
                 Item::LetBinding(lb) => {
                     self.bindings.insert(lb.name.clone(), lb.clone());
+                    self.all_bindings_by_name
+                        .entry(lb.name.clone())
+                        .or_default()
+                        .push(lb.clone());
                 }
             }
         }
@@ -66,9 +73,15 @@ impl TypeRegistry {
         &self.impls
     }
 
-    /// Return all let-bindings in the registry.
+    /// Return all let-bindings in the registry (last definition wins).
     pub fn all_bindings(&self) -> &HashMap<String, LetBinding> {
         &self.bindings
+    }
+
+    /// Return all let-bindings grouped by name, preserving definition order.
+    /// Names with multiple entries indicate redefinitions.
+    pub fn all_bindings_by_name(&self) -> &HashMap<String, Vec<LetBinding>> {
+        &self.all_bindings_by_name
     }
 
     /// Return all registered types (records and choices).

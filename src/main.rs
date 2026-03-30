@@ -49,6 +49,11 @@ fn main() {
                 spin_up::analysis::as_interface::check_as_interfaces(&resolve_result.registry);
             diagnostics.merge(as_iface_diags);
 
+            // Phase 7: Let-binding redefinition type checking
+            let let_check_diags =
+                spin_up::analysis::let_check::check_let_redefinitions(&resolve_result.registry);
+            diagnostics.merge(let_check_diags);
+
             // Report results
             if diagnostics.is_ok() {
                 println!("\u{2713} No errors found");
