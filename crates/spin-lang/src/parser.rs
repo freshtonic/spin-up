@@ -69,10 +69,13 @@ impl Parser {
                 Token::Type => {
                     items.push(self.parse_type_def(attributes)?);
                 }
+                Token::Interface => {
+                    items.push(self.parse_interface_def()?);
+                }
                 other => {
                     let span = &self.peek().unwrap().span;
                     return Err(ParseError::Expected {
-                        expected: "import or type".to_string(),
+                        expected: "import, type, or interface".to_string(),
                         found: format!("{other:?}"),
                         pos: span.start,
                     });
@@ -261,6 +264,67 @@ impl Parser {
                 span: start..end.end,
             }))
         }
+    }
+
+    fn parse_interface_def(&mut self) -> Result<Item, ParseError> {
+        let start = self.advance().unwrap().span.start; // consume 'interface'
+        let (name, _) = self.expect_ident()?;
+
+        // Optionally parse generic type parameters: <T>, <T, U>, etc.
+        let type_params = if self.check(&Token::Lt) {
+            self.advance(); // consume '<'
+            let mut params = Vec::new();
+            loop {
+                if self.check(&Token::Gt) {
+                    break;
+                }
+                let (param, _) = self.expect_ident()?;
+                params.push(param);
+                if self.check(&Token::Comma) {
+                    self.advance();
+                } else {
+                    break;
+                }
+            }
+            self.expect_token(Token::Gt)?;
+            params
+        } else {
+            vec![]
+        };
+
+        self.expect_token(Token::Eq)?;
+
+        // Parse interface fields until ';'
+        let mut fields = Vec::new();
+        while !self.check(&Token::Semicolon) {
+            // Each field can have per-field attributes like #[default(...)]
+            let field_attributes = self.parse_attributes()?;
+
+            let (field_name, field_name_span) = self.expect_ident()?;
+            self.expect_token(Token::Colon)?;
+            let ty = self.parse_type_expr()?;
+            let end = self.previous_span_end();
+
+            fields.push(crate::ast::InterfaceField {
+                name: field_name,
+                ty,
+                attributes: field_attributes,
+                span: field_name_span.start..end,
+            });
+
+            if self.check(&Token::Comma) {
+                self.advance();
+            }
+        }
+
+        let end = self.expect_token(Token::Semicolon)?;
+
+        Ok(Item::InterfaceDef(crate::ast::InterfaceDef {
+            name,
+            type_params,
+            fields,
+            span: start..end.end,
+        }))
     }
 
     fn parse_variant(&mut self) -> Result<Variant, ParseError> {

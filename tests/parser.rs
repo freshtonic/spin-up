@@ -1015,6 +1015,55 @@ fn test_field_mapping_construction() {
     assert_eq!(mapping.span, 0..30);
 }
 
+// --- Phase 3a Task 6: Parser — Interface Definitions ---
+
+#[test]
+fn test_parse_interface_def() {
+    let input = "interface Endpoint = host: str, port: u16;";
+    let module = parse(input).unwrap();
+    assert_eq!(module.items.len(), 1);
+    match &module.items[0] {
+        Item::InterfaceDef(i) => {
+            assert_eq!(i.name, "Endpoint");
+            assert_eq!(i.fields.len(), 2);
+            assert_eq!(i.fields[0].name, "host");
+            assert_eq!(i.fields[1].name, "port");
+        }
+        other => panic!("expected InterfaceDef, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_interface_with_field_attributes() {
+    let input = r#"interface Endpoint =
+  #[default("localhost")]
+  host: str,
+  port: u16,
+;"#;
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::InterfaceDef(i) => {
+            assert_eq!(i.fields[0].attributes.len(), 1);
+            assert_eq!(i.fields[0].attributes[0].name, "default");
+            assert!(i.fields[0].attributes[0].args.is_some());
+            assert_eq!(i.fields[1].attributes.len(), 0);
+        }
+        other => panic!("expected InterfaceDef, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_interface_with_generic() {
+    let input = "interface Container<T> = items: T;";
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::InterfaceDef(i) => {
+            assert_eq!(i.type_params, vec!["T"]);
+        }
+        other => panic!("expected InterfaceDef, got {other:?}"),
+    }
+}
+
 #[test]
 fn test_interface_field_construction() {
     let field = InterfaceField {
