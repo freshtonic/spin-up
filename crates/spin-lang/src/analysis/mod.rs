@@ -1,3 +1,4 @@
+pub mod constraints;
 pub mod graph;
 pub mod infer;
 pub mod registry;

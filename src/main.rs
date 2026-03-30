@@ -34,6 +34,11 @@ fn main() {
             let graph = spin_up::analysis::graph::build_dependency_graph(&resolve_result.registry);
             diagnostics.merge(graph.diagnostics);
 
+            // Phase 4: Constraint checking
+            let constraint_diags =
+                spin_up::analysis::constraints::check_constraints(&resolve_result.registry);
+            diagnostics.merge(constraint_diags);
+
             // Report results
             if diagnostics.is_ok() {
                 println!("\u{2713} No errors found");
