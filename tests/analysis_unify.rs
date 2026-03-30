@@ -2,18 +2,18 @@ use spin_up::analysis::registry::TypeRegistry;
 use spin_up::analysis::unify::unify;
 use spin_up::diagnostics::DiagnosticKind;
 use spin_up::parser;
+use spin_up::spin;
 
 #[test]
 fn test_unify_complete_impl() {
-    let source = r#"
-interface Endpoint = host: str, port: u16;
-type Server = hostname: str, port_num: u16;
-impl Endpoint for Server {
-  host: self.hostname,
-  port: self.port_num,
-}
-"#;
-    let module = parser::parse(source).unwrap();
+    let module = spin! {
+        interface Endpoint = host: str, port: u16;
+        type Server = hostname: str, port_num: u16;
+        impl Endpoint for Server {
+            host: self.hostname,
+            port: self.port_num,
+        }
+    };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
 
@@ -27,14 +27,13 @@ impl Endpoint for Server {
 
 #[test]
 fn test_unify_missing_required_field() {
-    let source = r#"
-interface Endpoint = host: str, port: u16;
-type Server = hostname: str;
-impl Endpoint for Server {
-  host: self.hostname,
-}
-"#;
-    let module = parser::parse(source).unwrap();
+    let module = spin! {
+        interface Endpoint = host: str, port: u16;
+        type Server = hostname: str;
+        impl Endpoint for Server {
+            host: self.hostname,
+        }
+    };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
 
@@ -48,14 +47,13 @@ impl Endpoint for Server {
 
 #[test]
 fn test_unify_optional_field_can_be_omitted() {
-    let source = r#"
-interface Endpoint = host: str, tls: Option<TlsConfig>;
-type Server = hostname: str;
-impl Endpoint for Server {
-  host: self.hostname,
-}
-"#;
-    let module = parser::parse(source).unwrap();
+    let module = spin! {
+        interface Endpoint = host: str, tls: Option<TlsConfig>;
+        type Server = hostname: str;
+        impl Endpoint for Server {
+            host: self.hostname,
+        }
+    };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
 
@@ -69,6 +67,7 @@ impl Endpoint for Server {
 
 #[test]
 fn test_unify_default_field_can_be_omitted() {
+    // Contains #[default("localhost")] attribute — cannot use spin! macro
     let source = r#"
 interface Endpoint =
   host: str,
@@ -94,13 +93,12 @@ impl Endpoint for Server {
 
 #[test]
 fn test_unify_unknown_interface_error() {
-    let source = r#"
-type Server = hostname: str;
-impl NonExistent for Server {
-  host: self.hostname,
-}
-"#;
-    let module = parser::parse(source).unwrap();
+    let module = spin! {
+        type Server = hostname: str;
+        impl NonExistent for Server {
+            host: self.hostname,
+        }
+    };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
 
@@ -114,14 +112,13 @@ impl NonExistent for Server {
 
 #[test]
 fn test_unify_type_mismatch_in_impl() {
-    let source = r#"
-interface Endpoint = host: str;
-type Server = hostname: u32;
-impl Endpoint for Server {
-  host: self.hostname,
-}
-"#;
-    let module = parser::parse(source).unwrap();
+    let module = spin! {
+        interface Endpoint = host: str;
+        type Server = hostname: u32;
+        impl Endpoint for Server {
+            host: self.hostname,
+        }
+    };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
 
@@ -136,15 +133,14 @@ impl Endpoint for Server {
 
 #[test]
 fn test_unify_compatible_types_in_impl() {
-    let source = r#"
-interface Endpoint = host: str, port: u16;
-type Server = hostname: str, port_num: u16;
-impl Endpoint for Server {
-  host: self.hostname,
-  port: self.port_num,
-}
-"#;
-    let module = parser::parse(source).unwrap();
+    let module = spin! {
+        interface Endpoint = host: str, port: u16;
+        type Server = hostname: str, port_num: u16;
+        impl Endpoint for Server {
+            host: self.hostname,
+            port: self.port_num,
+        }
+    };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
 
@@ -158,14 +154,13 @@ impl Endpoint for Server {
 
 #[test]
 fn test_unify_string_literal_matches_str() {
-    let source = r#"
-interface Endpoint = host: str;
-type Server = x: u32;
-impl Endpoint for Server {
-  host: "localhost",
-}
-"#;
-    let module = parser::parse(source).unwrap();
+    let module = spin! {
+        interface Endpoint = host: str;
+        type Server = x: u32;
+        impl Endpoint for Server {
+            host: "localhost",
+        }
+    };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
 
@@ -179,14 +174,13 @@ impl Endpoint for Server {
 
 #[test]
 fn test_unify_bool_literal_mismatch() {
-    let source = r#"
-interface Endpoint = host: str;
-type Server = x: u32;
-impl Endpoint for Server {
-  host: true,
-}
-"#;
-    let module = parser::parse(source).unwrap();
+    let module = spin! {
+        interface Endpoint = host: str;
+        type Server = x: u32;
+        impl Endpoint for Server {
+            host: true,
+        }
+    };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
 
@@ -201,14 +195,13 @@ impl Endpoint for Server {
 
 #[test]
 fn test_unify_none_matches_option() {
-    let source = r#"
-interface Endpoint = tls: Option<TlsConfig>;
-type Server = x: u32;
-impl Endpoint for Server {
-  tls: None,
-}
-"#;
-    let module = parser::parse(source).unwrap();
+    let module = spin! {
+        interface Endpoint = tls: Option<TlsConfig>;
+        type Server = x: u32;
+        impl Endpoint for Server {
+            tls: None,
+        }
+    };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
 
@@ -222,15 +215,14 @@ impl Endpoint for Server {
 
 #[test]
 fn test_unify_chained_field_access() {
-    let source = r#"
-type Inner = value: str;
-type Server = inner: Inner;
-interface Endpoint = host: str;
-impl Endpoint for Server {
-  host: self.inner.value,
-}
-"#;
-    let module = parser::parse(source).unwrap();
+    let module = spin! {
+        type Inner = value: str;
+        type Server = inner: Inner;
+        interface Endpoint = host: str;
+        impl Endpoint for Server {
+            host: self.inner.value,
+        }
+    };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
 

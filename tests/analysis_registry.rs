@@ -1,9 +1,9 @@
 use spin_up::analysis::registry::TypeRegistry;
-use spin_up::parser;
+use spin_up::spin;
 
 #[test]
 fn test_registry_registers_type() {
-    let module = parser::parse("type Foo = x: u32;").unwrap();
+    let module = spin! { type Foo = x: u32; };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
     assert!(registry.lookup_type("Foo").is_some());
@@ -11,7 +11,7 @@ fn test_registry_registers_type() {
 
 #[test]
 fn test_registry_registers_interface() {
-    let module = parser::parse("interface Bar = x: u32;").unwrap();
+    let module = spin! { interface Bar = x: u32; };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
     assert!(registry.lookup_interface("Bar").is_some());
@@ -19,7 +19,7 @@ fn test_registry_registers_interface() {
 
 #[test]
 fn test_registry_registers_let_binding() {
-    let module = parser::parse("let x = 42").unwrap();
+    let module = spin! { let x = 42 };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
     assert!(registry.lookup_binding("x").is_some());
@@ -27,7 +27,11 @@ fn test_registry_registers_let_binding() {
 
 #[test]
 fn test_registry_registers_impl() {
-    let module = parser::parse("impl Foo for Bar {\n  x: self.x,\n}").unwrap();
+    let module = spin! {
+        impl Foo for Bar {
+            x: self.x,
+        }
+    };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
     let impls = registry.lookup_impls_for_type("Bar");

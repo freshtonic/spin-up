@@ -1,24 +1,23 @@
 use spin_up::analysis::as_interface::check_as_interfaces;
 use spin_up::analysis::registry::TypeRegistry;
 use spin_up::diagnostics::DiagnosticKind;
-use spin_up::parser;
+use spin_up::spin;
 
 #[test]
 fn valid_as_interface() {
-    let source = r#"
-interface Endpoint = port: u16;
-type Server = name: str;
-impl Endpoint for Server {
-  port: 8080,
-}
-let x = Server {
-  name: "foo",
-  <as Endpoint> {
-    port: 9090,
-  }
-}
-"#;
-    let module = parser::parse(source).unwrap();
+    let module = spin! {
+        interface Endpoint = port: u16;
+        type Server = name: str;
+        impl Endpoint for Server {
+            port: 8080,
+        }
+        let x = Server {
+            name: "foo",
+            <as Endpoint> {
+                port: 9090,
+            }
+        }
+    };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
 
@@ -32,16 +31,15 @@ let x = Server {
 
 #[test]
 fn as_interface_unknown_interface() {
-    let source = r#"
-type Server = name: str;
-let x = Server {
-  name: "foo",
-  <as NonExistent> {
-    port: 9090,
-  }
-}
-"#;
-    let module = parser::parse(source).unwrap();
+    let module = spin! {
+        type Server = name: str;
+        let x = Server {
+            name: "foo",
+            <as NonExistent> {
+                port: 9090,
+            }
+        }
+    };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
 
@@ -55,17 +53,16 @@ let x = Server {
 
 #[test]
 fn as_interface_type_does_not_implement() {
-    let source = r#"
-interface Endpoint = port: u16;
-type Server = name: str;
-let x = Server {
-  name: "foo",
-  <as Endpoint> {
-    port: 9090,
-  }
-}
-"#;
-    let module = parser::parse(source).unwrap();
+    let module = spin! {
+        interface Endpoint = port: u16;
+        type Server = name: str;
+        let x = Server {
+            name: "foo",
+            <as Endpoint> {
+                port: 9090,
+            }
+        }
+    };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
 
@@ -80,11 +77,10 @@ let x = Server {
 
 #[test]
 fn no_as_interfaces_passes() {
-    let source = r#"
-type Server = name: str;
-let x = Server { name: "foo" }
-"#;
-    let module = parser::parse(source).unwrap();
+    let module = spin! {
+        type Server = name: str;
+        let x = Server { name: "foo" }
+    };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
 

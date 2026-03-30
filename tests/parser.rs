@@ -4,20 +4,24 @@ use spin_up::ast::{
     UnaryOp, Variant,
 };
 use spin_up::parser::parse;
+use spin_up::spin;
 
 // Note: The `resource` keyword has been removed. Resource definitions now use
 // the `type` keyword with record (product type) syntax: `type Foo = field: Type;`
 
 #[test]
 fn test_parse_single_import() {
-    let module = parse("import postgres").unwrap();
+    let module = spin! { import postgres };
     assert_eq!(module.imports.len(), 1);
     assert_eq!(module.imports[0].module_name, "postgres");
 }
 
 #[test]
 fn test_parse_multiple_imports() {
-    let module = parse("import postgres\nimport redis").unwrap();
+    let module = spin! {
+        import postgres
+        import redis
+    };
     assert_eq!(module.imports.len(), 2);
     assert_eq!(module.imports[0].module_name, "postgres");
     assert_eq!(module.imports[1].module_name, "redis");
@@ -25,13 +29,13 @@ fn test_parse_multiple_imports() {
 
 #[test]
 fn test_parse_import_with_hyphen() {
-    let module = parse("import spin-core").unwrap();
+    let module = spin! { import spin-core };
     assert_eq!(module.imports[0].module_name, "spin-core");
 }
 
 #[test]
 fn test_parse_empty_input() {
-    let module = parse("").unwrap();
+    let module = spin! {};
     assert!(module.imports.is_empty());
     assert!(module.items.is_empty());
 }
@@ -44,7 +48,7 @@ fn test_parse_import_missing_name() {
 
 #[test]
 fn test_parse_empty_resource_as_record() {
-    let module = parse("type Postgres;").unwrap();
+    let module = spin! { type Postgres; };
     assert_eq!(module.items.len(), 1);
     match &module.items[0] {
         Item::RecordDef(r) => {
@@ -57,8 +61,7 @@ fn test_parse_empty_resource_as_record() {
 
 #[test]
 fn test_parse_resource_with_simple_field() {
-    let input = "type Postgres = host: String;";
-    let module = parse(input).unwrap();
+    let module = spin! { type Postgres = host: String; };
     match &module.items[0] {
         Item::RecordDef(r) => {
             assert_eq!(r.fields.len(), 1);
@@ -71,8 +74,7 @@ fn test_parse_resource_with_simple_field() {
 
 #[test]
 fn test_parse_resource_with_qualified_type() {
-    let input = "type Postgres = port: spin-core::TcpPort;";
-    let module = parse(input).unwrap();
+    let module = spin! { type Postgres = port: spin-core::TcpPort; };
     match &module.items[0] {
         Item::RecordDef(r) => {
             assert_eq!(r.fields[0].name, "port");
@@ -90,8 +92,7 @@ fn test_parse_resource_with_qualified_type() {
 
 #[test]
 fn test_parse_resource_with_generic_type() {
-    let input = "type Postgres = tls: Option<Self::Tls>;";
-    let module = parse(input).unwrap();
+    let module = spin! { type Postgres = tls: Option<Self::Tls>; };
     match &module.items[0] {
         Item::RecordDef(r) => match &r.fields[0].ty {
             TypeExpr::Generic { name, args } => {
@@ -107,8 +108,7 @@ fn test_parse_resource_with_generic_type() {
 
 #[test]
 fn test_parse_resource_with_self_path() {
-    let input = "type Postgres = tls: Self::Tls;";
-    let module = parse(input).unwrap();
+    let module = spin! { type Postgres = tls: Self::Tls; };
     match &module.items[0] {
         Item::RecordDef(r) => {
             assert!(matches!(&r.fields[0].ty, TypeExpr::SelfPath(n) if n == "Tls"));
@@ -119,8 +119,7 @@ fn test_parse_resource_with_self_path() {
 
 #[test]
 fn test_parse_resource_trailing_comma_optional() {
-    let input = "type Postgres = host: String;";
-    let module = parse(input).unwrap();
+    let module = spin! { type Postgres = host: String; };
     match &module.items[0] {
         Item::RecordDef(r) => {
             assert_eq!(r.fields.len(), 1);
@@ -131,8 +130,9 @@ fn test_parse_resource_trailing_comma_optional() {
 
 #[test]
 fn test_parse_multiple_fields() {
-    let input = "type Postgres = version: spin-core::Semver, host: spin-core::String, port: spin-core::TcpPort;";
-    let module = parse(input).unwrap();
+    let module = spin! {
+        type Postgres = version: spin-core::Semver, host: spin-core::String, port: spin-core::TcpPort;
+    };
     match &module.items[0] {
         Item::RecordDef(r) => {
             assert_eq!(r.fields.len(), 3);
@@ -146,8 +146,10 @@ fn test_parse_multiple_fields() {
 
 #[test]
 fn test_parse_import_then_resource() {
-    let input = "import spin-core\n\ntype Postgres = port: spin-core::TcpPort;";
-    let module = parse(input).unwrap();
+    let module = spin! {
+        import spin-core
+        type Postgres = port: spin-core::TcpPort;
+    };
     assert_eq!(module.imports.len(), 1);
     assert_eq!(module.imports[0].module_name, "spin-core");
     assert_eq!(module.items.len(), 1);
@@ -401,7 +403,7 @@ fn test_ast_item_choice_def_variant() {
 
 #[test]
 fn test_record_def_has_attributes_field() {
-    let module = parse("type Postgres;").unwrap();
+    let module = spin! { type Postgres; };
     match &module.items[0] {
         Item::RecordDef(r) => {
             assert!(r.attributes.is_empty());
@@ -441,8 +443,12 @@ fn test_parse_multiple_attributes() {
 
 #[test]
 fn test_parse_record_def() {
-    let input = "type Tls =\n  port: u16,\n  key: str,\n;";
-    let module = parse(input).unwrap();
+    let module = spin! {
+        type Tls =
+            port: u16,
+            key: str,
+        ;
+    };
     assert_eq!(module.items.len(), 1);
     match &module.items[0] {
         Item::RecordDef(r) => {
@@ -471,7 +477,7 @@ fn test_parse_record_with_attribute() {
 
 #[test]
 fn test_parse_empty_record() {
-    let module = parse("type Empty = ;").unwrap();
+    let module = spin! { type Empty = ; };
     match &module.items[0] {
         Item::RecordDef(r) => {
             assert_eq!(r.name, "Empty");
@@ -485,8 +491,7 @@ fn test_parse_empty_record() {
 
 #[test]
 fn test_parse_choice_def() {
-    let input = "type IpAddr = V4(IpAddrV4) | V6(IpAddrV6);";
-    let module = parse(input).unwrap();
+    let module = spin! { type IpAddr = V4(IpAddrV4) | V6(IpAddrV6); };
     assert_eq!(module.items.len(), 1);
     match &module.items[0] {
         Item::ChoiceDef(c) => {
@@ -503,8 +508,7 @@ fn test_parse_choice_def() {
 
 #[test]
 fn test_parse_choice_unit_variant() {
-    let input = "type Option = Some(T) | None;";
-    let module = parse(input).unwrap();
+    let module = spin! { type Option = Some(T) | None; };
     match &module.items[0] {
         Item::ChoiceDef(c) => {
             assert_eq!(c.variants.len(), 2);
@@ -532,8 +536,7 @@ fn test_parse_choice_with_attribute() {
 
 #[test]
 fn test_parse_choice_multi_field_variant() {
-    let input = "type Pair = Both(u32, str) | Neither;";
-    let module = parse(input).unwrap();
+    let module = spin! { type Pair = Both(u32, str) | Neither; };
     match &module.items[0] {
         Item::ChoiceDef(c) => {
             assert_eq!(c.variants[0].name, "Both");
@@ -547,8 +550,7 @@ fn test_parse_choice_multi_field_variant() {
 
 #[test]
 fn test_parse_primitive_type_in_field() {
-    let input = "type Foo = x: u32, y: bool, z: str;";
-    let module = parse(input).unwrap();
+    let module = spin! { type Foo = x: u32, y: bool, z: str; };
     match &module.items[0] {
         Item::RecordDef(r) => {
             assert!(matches!(
@@ -570,8 +572,7 @@ fn test_parse_primitive_type_in_field() {
 
 #[test]
 fn test_parse_array_type() {
-    let input = "type Foo = data: [u8; 4];";
-    let module = parse(input).unwrap();
+    let module = spin! { type Foo = data: [u8; 4]; };
     match &module.items[0] {
         Item::RecordDef(r) => match &r.fields[0].ty {
             TypeExpr::Array { element, size } => {
@@ -589,8 +590,7 @@ fn test_parse_array_type() {
 
 #[test]
 fn test_parse_slice_type() {
-    let input = "type Foo = data: [u8];";
-    let module = parse(input).unwrap();
+    let module = spin! { type Foo = data: [u8]; };
     match &module.items[0] {
         Item::RecordDef(r) => match &r.fields[0].ty {
             TypeExpr::Slice(element) => {
@@ -607,8 +607,7 @@ fn test_parse_slice_type() {
 
 #[test]
 fn test_parse_tuple_type() {
-    let input = "type Foo = pair: (u32, str);";
-    let module = parse(input).unwrap();
+    let module = spin! { type Foo = pair: (u32, str); };
     match &module.items[0] {
         Item::RecordDef(r) => match &r.fields[0].ty {
             TypeExpr::Tuple(elements) => {
@@ -630,8 +629,7 @@ fn test_parse_tuple_type() {
 
 #[test]
 fn test_parse_unit_type() {
-    let input = "type Foo = nothing: ();";
-    let module = parse(input).unwrap();
+    let module = spin! { type Foo = nothing: (); };
     match &module.items[0] {
         Item::RecordDef(r) => {
             assert!(matches!(&r.fields[0].ty, TypeExpr::Unit));
@@ -1014,8 +1012,7 @@ fn test_field_mapping_construction() {
 
 #[test]
 fn test_parse_interface_def() {
-    let input = "interface Endpoint = host: str, port: u16;";
-    let module = parse(input).unwrap();
+    let module = spin! { interface Endpoint = host: str, port: u16; };
     assert_eq!(module.items.len(), 1);
     match &module.items[0] {
         Item::InterfaceDef(i) => {
@@ -1049,8 +1046,7 @@ fn test_parse_interface_with_field_attributes() {
 
 #[test]
 fn test_parse_interface_with_generic() {
-    let input = "interface Container<T> = items: T;";
-    let module = parse(input).unwrap();
+    let module = spin! { interface Container<T> = items: T; };
     match &module.items[0] {
         Item::InterfaceDef(i) => {
             assert_eq!(i.type_params, vec!["T"]);
@@ -1079,9 +1075,12 @@ fn test_interface_field_construction() {
 
 #[test]
 fn test_parse_impl_block() {
-    let input =
-        "impl Endpoint for MyServer {\n  host: self.hostname,\n  port: self.config.port,\n}";
-    let module = parse(input).unwrap();
+    let module = spin! {
+        impl Endpoint for MyServer {
+            host: self.hostname,
+            port: self.config.port,
+        }
+    };
     assert_eq!(module.items.len(), 1);
     match &module.items[0] {
         Item::ImplBlock(i) => {
@@ -1097,8 +1096,11 @@ fn test_parse_impl_block() {
 
 #[test]
 fn test_parse_impl_block_with_expression() {
-    let input = "impl Endpoint for MyServer {\n  greeting: \"hello\",\n}";
-    let module = parse(input).unwrap();
+    let module = spin! {
+        impl Endpoint for MyServer {
+            greeting: "hello",
+        }
+    };
     match &module.items[0] {
         Item::ImplBlock(i) => {
             assert_eq!(i.mappings.len(), 1);
@@ -1112,13 +1114,14 @@ fn test_parse_impl_block_with_expression() {
 
 #[test]
 fn test_parse_as_interface_in_construction() {
-    let input = r#"let x = MyType {
-  name: "foo",
-  <as Endpoint> {
-    port: 8080,
-  }
-}"#;
-    let module = parse(input).unwrap();
+    let module = spin! {
+        let x = MyType {
+            name: "foo",
+            <as Endpoint> {
+                port: 8080,
+            }
+        }
+    };
     match &module.items[0] {
         Item::LetBinding(l) => match &l.value {
             Expr::TypeConstruction {
@@ -1144,8 +1147,7 @@ fn test_parse_as_interface_in_construction() {
 
 #[test]
 fn test_parse_plain_string_no_interpolation() {
-    let input = r#"let x = "hello world""#;
-    let module = parse(input).unwrap();
+    let module = spin! { let x = "hello world" };
     match &module.items[0] {
         Item::LetBinding(l) => {
             assert!(matches!(&l.value, Expr::StringLit(s) if s == "hello world"));

@@ -2,9 +2,11 @@ use spin_up::analysis::delegate::check_delegates;
 use spin_up::analysis::registry::TypeRegistry;
 use spin_up::diagnostics::DiagnosticKind;
 use spin_up::parser;
+use spin_up::spin;
 
 #[test]
 fn valid_delegate_produces_no_errors() {
+    // Contains #[delegate] and #[target] attributes -- cannot use spin! macro
     let source = r#"
 interface Endpoint = host: str, port: u16;
 
@@ -29,6 +31,7 @@ type Proxy =
 
 #[test]
 fn delegate_without_target_emits_invalid_delegate() {
+    // Contains #[delegate] attribute -- cannot use spin! macro
     let source = r#"
 interface Endpoint = host: str;
 
@@ -51,6 +54,7 @@ type Proxy =
 
 #[test]
 fn delegate_with_unknown_interface_emits_unknown_interface() {
+    // Contains #[delegate] and #[target] attributes -- cannot use spin! macro
     let source = r#"
 #[delegate(NonExistent)]
 type Proxy =
@@ -72,8 +76,7 @@ type Proxy =
 
 #[test]
 fn type_without_delegates_produces_no_errors() {
-    let source = "type Foo = x: u32;";
-    let module = parser::parse(source).unwrap();
+    let module = spin! { type Foo = x: u32; };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
 
@@ -83,6 +86,7 @@ fn type_without_delegates_produces_no_errors() {
 
 #[test]
 fn multiple_target_fields_for_same_delegate_emits_invalid_delegate() {
+    // Contains #[delegate] and #[target] attributes -- cannot use spin! macro
     let source = r#"
 interface Endpoint = host: str;
 
@@ -108,6 +112,7 @@ type Proxy =
 
 #[test]
 fn target_field_type_mismatch_emits_invalid_delegate() {
+    // Contains #[delegate] and #[target] attributes -- cannot use spin! macro
     let source = r#"
 interface Endpoint = host: str;
 
@@ -131,6 +136,7 @@ type Proxy =
 
 #[test]
 fn target_without_delegate_emits_invalid_delegate() {
+    // Contains #[target] attribute -- cannot use spin! macro
     let source = r#"
 interface Endpoint = host: str;
 
@@ -153,6 +159,7 @@ type Proxy =
 
 #[test]
 fn delegate_with_impl_block_for_field_type_is_valid() {
+    // Contains #[delegate] and #[target] attributes -- cannot use spin! macro
     let source = r#"
 interface Endpoint = host: str;
 type MyFrontend = host: str;

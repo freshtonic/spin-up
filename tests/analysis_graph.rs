@@ -1,17 +1,16 @@
 use spin_up::analysis::graph::build_dependency_graph;
 use spin_up::analysis::registry::TypeRegistry;
 use spin_up::diagnostics::DiagnosticKind;
-use spin_up::parser;
+use spin_up::spin;
 
 #[test]
 fn test_graph_simple_dependency() {
-    let source = r#"
-type Database = port: u16;
-let db = Database { port: 5432 }
-let app = MyApp { database: db }
-type MyApp = database: Database;
-"#;
-    let module = parser::parse(source).unwrap();
+    let module = spin! {
+        type Database = port: u16;
+        let db = Database { port: 5432 }
+        let app = MyApp { database: db }
+        type MyApp = database: Database;
+    };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
 
@@ -30,13 +29,12 @@ type MyApp = database: Database;
 
 #[test]
 fn test_graph_detects_cycle() {
-    let source = r#"
-let a = Foo { dep: b }
-let b = Bar { dep: a }
-type Foo = dep: Bar;
-type Bar = dep: Foo;
-"#;
-    let module = parser::parse(source).unwrap();
+    let module = spin! {
+        let a = Foo { dep: b }
+        let b = Bar { dep: a }
+        type Foo = dep: Bar;
+        type Bar = dep: Foo;
+    };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
 
