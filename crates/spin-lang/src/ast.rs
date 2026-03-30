@@ -14,10 +14,11 @@ pub struct Import {
     pub span: Range<usize>,
 }
 
-/// An attribute: `#[lang-item]`
+/// An attribute: `#[lang-item]` or `#[delegate(PostgresEndpoint)]`
 #[derive(Debug, Clone, PartialEq)]
 pub struct Attribute {
     pub name: String,
+    pub args: Option<String>,
     pub span: Range<usize>,
 }
 

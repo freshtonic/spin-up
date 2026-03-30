@@ -68,6 +68,7 @@ fn test_normalize_choice() {
         type_params: vec![],
         attributes: vec![Attribute {
             name: "lang-item".to_string(),
+            args: None,
             span: 0..11,
         }],
         variants: vec![

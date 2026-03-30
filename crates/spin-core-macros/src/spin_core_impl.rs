@@ -492,6 +492,7 @@ mod tests {
             type_params: vec![],
             attributes: vec![NormalizedAttribute {
                 name: "lang-item".to_string(),
+                args: None,
             }],
             fields: vec![],
         });
@@ -514,6 +515,7 @@ mod tests {
             type_params: vec![],
             attributes: vec![NormalizedAttribute {
                 name: "lang-item".to_string(),
+                args: None,
             }],
             variants: vec![],
         });

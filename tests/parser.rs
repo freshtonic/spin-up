@@ -161,6 +161,7 @@ fn test_parse_import_then_resource() {
 fn test_ast_attribute_construction() {
     let attr = Attribute {
         name: "lang-item".to_string(),
+        args: None,
         span: 0..11,
     };
     assert_eq!(attr.name, "lang-item");
@@ -171,10 +172,12 @@ fn test_ast_attribute_construction() {
 fn test_ast_attribute_equality() {
     let a = Attribute {
         name: "lang-item".to_string(),
+        args: None,
         span: 0..11,
     };
     let b = Attribute {
         name: "lang-item".to_string(),
+        args: None,
         span: 0..11,
     };
     assert_eq!(a, b);
@@ -187,6 +190,7 @@ fn test_ast_record_def_construction() {
         type_params: vec![],
         attributes: vec![Attribute {
             name: "lang-item".to_string(),
+            args: None,
             span: 0..11,
         }],
         fields: vec![],
@@ -304,6 +308,70 @@ fn test_ast_type_expr_tuple() {
 fn test_ast_type_expr_unit() {
     let ty = TypeExpr::Unit;
     assert!(matches!(ty, TypeExpr::Unit));
+}
+
+// --- Attribute arguments (Phase 3a Task 3) ---
+
+#[test]
+fn test_parse_attribute_with_args() {
+    let input = "#[delegate(PostgresEndpoint)]\ntype Proxy = frontend: str;";
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::RecordDef(r) => {
+            assert_eq!(r.attributes.len(), 1);
+            assert_eq!(r.attributes[0].name, "delegate");
+            assert_eq!(r.attributes[0].args.as_deref(), Some("PostgresEndpoint"));
+        }
+        other => panic!("expected RecordDef, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_attribute_with_string_args() {
+    let input = "#[default(\"postgres\")]\ntype Foo = name: str;";
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::RecordDef(r) => {
+            assert_eq!(r.attributes.len(), 1);
+            assert_eq!(r.attributes[0].name, "default");
+            assert_eq!(
+                r.attributes[0].args.as_deref(),
+                Some("\"postgres\"")
+            );
+        }
+        other => panic!("expected RecordDef, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_attribute_without_args() {
+    let input = "#[lang-item]\ntype Foo = name: str;";
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::RecordDef(r) => {
+            assert_eq!(r.attributes.len(), 1);
+            assert_eq!(r.attributes[0].name, "lang-item");
+            assert!(r.attributes[0].args.is_none());
+        }
+        other => panic!("expected RecordDef, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_attribute_with_nested_parens() {
+    let input = "#[target(SocketAddr::V4(port: 5432))]\ntype Foo = name: str;";
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::RecordDef(r) => {
+            assert_eq!(r.attributes.len(), 1);
+            assert_eq!(r.attributes[0].name, "target");
+            assert_eq!(
+                r.attributes[0].args.as_deref(),
+                Some("SocketAddr :: V4 ( port : 5432 )")
+            );
+        }
+        other => panic!("expected RecordDef, got {other:?}"),
+    }
 }
 
 #[test]

@@ -93,9 +93,51 @@ impl Parser {
         {
             let start = self.advance().unwrap().span.start; // consume '#['
             let (name, _) = self.expect_ident()?;
+
+            // Optionally parse attribute arguments: `(...)` with balanced parens
+            let args = if self.check(&Token::LParen) {
+                self.advance(); // consume '('
+                let mut depth: usize = 1;
+                let mut parts = Vec::new();
+
+                while depth > 0 {
+                    match self.advance() {
+                        Some(Spanned {
+                            kind: Token::LParen,
+                            ..
+                        }) => {
+                            depth += 1;
+                            parts.push("(".to_string());
+                        }
+                        Some(Spanned {
+                            kind: Token::RParen,
+                            ..
+                        }) => {
+                            depth -= 1;
+                            if depth > 0 {
+                                parts.push(")".to_string());
+                            }
+                        }
+                        Some(spanned) => {
+                            parts.push(token_to_string(&spanned.kind));
+                        }
+                        None => {
+                            return Err(ParseError::UnexpectedEof {
+                                expected: "closing ')'".to_string(),
+                            });
+                        }
+                    }
+                }
+
+                Some(parts.join(" "))
+            } else {
+                None
+            };
+
             let end_span = self.expect_token(Token::RBracket)?;
             attributes.push(Attribute {
                 name,
+                args,
                 span: start..end_span.end,
             });
         }
@@ -415,6 +457,67 @@ impl Parser {
         } else {
             0
         }
+    }
+}
+
+/// Convert a token to its string representation for raw attribute argument capture.
+fn token_to_string(token: &Token) -> String {
+    match token {
+        Token::Ident(s) => s.clone(),
+        Token::Number(s) => s.clone(),
+        Token::StringLit(s) => format!("\"{s}\""),
+        Token::Import => "import".to_string(),
+        Token::If => "if".to_string(),
+        Token::Then => "then".to_string(),
+        Token::Else => "else".to_string(),
+        Token::Fn => "fn".to_string(),
+        Token::Map => "map".to_string(),
+        Token::Filter => "filter".to_string(),
+        Token::Self_ => "self".to_string(),
+        Token::Interface => "interface".to_string(),
+        Token::Impl => "impl".to_string(),
+        Token::For => "for".to_string(),
+        Token::Let => "let".to_string(),
+        Token::It => "it".to_string(),
+        Token::Bool => "bool".to_string(),
+        Token::U8 => "u8".to_string(),
+        Token::U16 => "u16".to_string(),
+        Token::U32 => "u32".to_string(),
+        Token::U64 => "u64".to_string(),
+        Token::U128 => "u128".to_string(),
+        Token::I8 => "i8".to_string(),
+        Token::I16 => "i16".to_string(),
+        Token::I32 => "i32".to_string(),
+        Token::I64 => "i64".to_string(),
+        Token::I128 => "i128".to_string(),
+        Token::F32 => "f32".to_string(),
+        Token::F64 => "f64".to_string(),
+        Token::Str => "str".to_string(),
+        Token::Type => "type".to_string(),
+        Token::HashBracket => "#[".to_string(),
+        Token::LBrace => "{".to_string(),
+        Token::RBrace => "}".to_string(),
+        Token::LParen => "(".to_string(),
+        Token::RParen => ")".to_string(),
+        Token::LBracket => "[".to_string(),
+        Token::RBracket => "]".to_string(),
+        Token::Comma => ",".to_string(),
+        Token::Colon => ":".to_string(),
+        Token::PathSep => "::".to_string(),
+        Token::Dot => ".".to_string(),
+        Token::Eq => "=".to_string(),
+        Token::EqEq => "==".to_string(),
+        Token::BangEq => "!=".to_string(),
+        Token::Gte => ">=".to_string(),
+        Token::Lte => "<=".to_string(),
+        Token::Gt => ">".to_string(),
+        Token::Lt => "<".to_string(),
+        Token::Pipe => "|".to_string(),
+        Token::And => "&&".to_string(),
+        Token::Or => "||".to_string(),
+        Token::Bang => "!".to_string(),
+        Token::Arrow => "->".to_string(),
+        Token::Semicolon => ";".to_string(),
     }
 }
 

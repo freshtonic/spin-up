@@ -26,6 +26,7 @@ pub struct NormalizedChoiceDef {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NormalizedAttribute {
     pub name: String,
+    pub args: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -91,6 +92,7 @@ fn normalize_choice(choice: &ast::ChoiceDef) -> NormalizedChoiceDef {
 fn normalize_attribute(attr: &ast::Attribute) -> NormalizedAttribute {
     NormalizedAttribute {
         name: attr.name.clone(),
+        args: attr.args.clone(),
     }
 }
 
