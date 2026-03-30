@@ -13,6 +13,9 @@ fn main() {
         Command::Down => {
             println!("spin down: not yet implemented");
         }
+        Command::Check => {
+            println!("spin check: not yet implemented");
+        }
         Command::Plumbing { command } => match command {
             PlumbingCommand::Supervise { resource } => {
                 println!("spin plumbing supervise {resource}: not yet implemented");

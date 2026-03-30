@@ -77,3 +77,12 @@ fn test_plumbing_kill_subcommand_exists() {
         .assert()
         .success();
 }
+
+#[test]
+fn test_spin_check_subcommand_exists() {
+    Command::cargo_bin("spin")
+        .unwrap()
+        .arg("check")
+        .assert()
+        .success();
+}

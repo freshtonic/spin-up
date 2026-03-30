@@ -17,6 +17,8 @@ pub enum Command {
     Up,
     /// Tear down a running application and all its dependencies
     Down,
+    /// Run static analysis on .spin files
+    Check,
     /// Internal plumbing commands (use --plumbing to see in help)
     #[command(hide = true)]
     Plumbing {
