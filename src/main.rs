@@ -44,6 +44,11 @@ fn main() {
                 spin_up::analysis::delegate::check_delegates(&resolve_result.registry);
             diagnostics.merge(delegate_diags);
 
+            // Phase 6: As-interface validation
+            let as_iface_diags =
+                spin_up::analysis::as_interface::check_as_interfaces(&resolve_result.registry);
+            diagnostics.merge(as_iface_diags);
+
             // Report results
             if diagnostics.is_ok() {
                 println!("\u{2713} No errors found");
