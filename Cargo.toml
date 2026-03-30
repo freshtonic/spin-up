@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "crates/spin-lang", "crates/spin-core-macros"]
+members = [".", "crates/spin-lang", "crates/spin-core-macros", "crates/spin-lsp"]
 
 [package]
 name = "spin-up"

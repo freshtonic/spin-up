@@ -1,0 +1,14 @@
+[package]
+name = "spin-lsp"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "spin-lsp"
+path = "src/main.rs"
+
+[dependencies]
+tower-lsp = "0.20"
+tokio = { version = "1", features = ["full"] }
+spin-lang = { path = "../spin-lang" }
+serde_json = "1"

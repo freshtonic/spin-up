@@ -1,7 +1,7 @@
 {
   "name": "spin-lang",
   "displayName": "Spin Language",
-  "description": "Syntax highlighting for .spin files",
+  "description": "Language support for .spin files — syntax highlighting, autocomplete, hover, and rename",
   "version": "0.1.0",
   "publisher": "freshtonic",
   "license": "MIT",
@@ -15,6 +15,10 @@
   "categories": [
     "Programming Languages"
   ],
+  "activationEvents": [
+    "onLanguage:spin"
+  ],
+  "main": "./extension.js",
   "contributes": {
     "languages": [
       {
@@ -35,6 +39,20 @@
         "scopeName": "source.spin",
         "path": "./syntaxes/spin.tmLanguage.json"
       }
-    ]
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Spin Language",
+      "properties": {
+        "spin.lsp.path": {
+          "type": "string",
+          "default": "spin-lsp",
+          "description": "Path to the spin-lsp binary. Defaults to finding it on PATH."
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.0"
   }
 }
