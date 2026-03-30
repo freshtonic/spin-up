@@ -320,8 +320,10 @@ fn test_ast_type_expr_unit() {
 
 #[test]
 fn test_parse_attribute_with_args() {
-    let input = "#[delegate(PostgresEndpoint)]\ntype Proxy = frontend: str;";
-    let module = parse(input).unwrap();
+    let module = spin! {
+        #[delegate(PostgresEndpoint)]
+        type Proxy = frontend: str;
+    };
     match &module.items[0] {
         Item::RecordDef(r) => {
             assert_eq!(r.attributes.len(), 1);
@@ -334,8 +336,10 @@ fn test_parse_attribute_with_args() {
 
 #[test]
 fn test_parse_attribute_with_string_args() {
-    let input = "#[default(\"postgres\")]\ntype Foo = name: str;";
-    let module = parse(input).unwrap();
+    let module = spin! {
+        #[default("postgres")]
+        type Foo = name: str;
+    };
     match &module.items[0] {
         Item::RecordDef(r) => {
             assert_eq!(r.attributes.len(), 1);
@@ -348,8 +352,10 @@ fn test_parse_attribute_with_string_args() {
 
 #[test]
 fn test_parse_attribute_without_args() {
-    let input = "#[lang-item]\ntype Foo = name: str;";
-    let module = parse(input).unwrap();
+    let module = spin! {
+        #[lang-item]
+        type Foo = name: str;
+    };
     match &module.items[0] {
         Item::RecordDef(r) => {
             assert_eq!(r.attributes.len(), 1);
@@ -362,8 +368,10 @@ fn test_parse_attribute_without_args() {
 
 #[test]
 fn test_parse_attribute_with_nested_parens() {
-    let input = "#[target(SocketAddr::V4(port: 5432))]\ntype Foo = name: str;";
-    let module = parse(input).unwrap();
+    let module = spin! {
+        #[target(SocketAddr::V4(port: 5432))]
+        type Foo = name: str;
+    };
     match &module.items[0] {
         Item::RecordDef(r) => {
             assert_eq!(r.attributes.len(), 1);
@@ -414,8 +422,10 @@ fn test_record_def_has_attributes_field() {
 
 #[test]
 fn test_parse_attribute_on_record() {
-    let input = "#[lang-item]\ntype Postgres = port: u32;";
-    let module = parse(input).unwrap();
+    let module = spin! {
+        #[lang-item]
+        type Postgres = port: u32;
+    };
     match &module.items[0] {
         Item::RecordDef(r) => {
             assert_eq!(r.attributes.len(), 1);
@@ -427,8 +437,11 @@ fn test_parse_attribute_on_record() {
 
 #[test]
 fn test_parse_multiple_attributes() {
-    let input = "#[lang-item]\n#[deprecated]\ntype Postgres;";
-    let module = parse(input).unwrap();
+    let module = spin! {
+        #[lang-item]
+        #[deprecated]
+        type Postgres;
+    };
     match &module.items[0] {
         Item::RecordDef(r) => {
             assert_eq!(r.attributes.len(), 2);
@@ -463,8 +476,12 @@ fn test_parse_record_def() {
 
 #[test]
 fn test_parse_record_with_attribute() {
-    let input = "#[lang-item]\ntype Tls =\n  port: u16,\n;";
-    let module = parse(input).unwrap();
+    let module = spin! {
+        #[lang-item]
+        type Tls =
+            port: u16,
+        ;
+    };
     match &module.items[0] {
         Item::RecordDef(r) => {
             assert_eq!(r.attributes.len(), 1);
@@ -523,8 +540,10 @@ fn test_parse_choice_unit_variant() {
 
 #[test]
 fn test_parse_choice_with_attribute() {
-    let input = "#[lang-item]\ntype IpAddr = V4(IpAddrV4) | V6(IpAddrV6);";
-    let module = parse(input).unwrap();
+    let module = spin! {
+        #[lang-item]
+        type IpAddr = V4(IpAddrV4) | V6(IpAddrV6);
+    };
     match &module.items[0] {
         Item::ChoiceDef(c) => {
             assert_eq!(c.attributes.len(), 1);
@@ -1027,12 +1046,13 @@ fn test_parse_interface_def() {
 
 #[test]
 fn test_parse_interface_with_field_attributes() {
-    let input = r#"interface Endpoint =
-  #[default("localhost")]
-  host: str,
-  port: u16,
-;"#;
-    let module = parse(input).unwrap();
+    let module = spin! {
+        interface Endpoint =
+            #[default("localhost")]
+            host: str,
+            port: u16,
+        ;
+    };
     match &module.items[0] {
         Item::InterfaceDef(i) => {
             assert_eq!(i.fields[0].attributes.len(), 1);
@@ -1158,8 +1178,7 @@ fn test_parse_plain_string_no_interpolation() {
 
 #[test]
 fn test_parse_string_interpolation_simple() {
-    let input = r#"let x = "hello ${name}""#;
-    let module = parse(input).unwrap();
+    let module = spin! { let x = "hello ${name}" };
     match &module.items[0] {
         Item::LetBinding(l) => match &l.value {
             Expr::StringInterpolation(parts) => {
@@ -1175,8 +1194,7 @@ fn test_parse_string_interpolation_simple() {
 
 #[test]
 fn test_parse_string_interpolation_dotted_path() {
-    let input = r#"let x = "host: ${postgres.host}""#;
-    let module = parse(input).unwrap();
+    let module = spin! { let x = "host: ${postgres.host}" };
     match &module.items[0] {
         Item::LetBinding(l) => match &l.value {
             Expr::StringInterpolation(parts) => {
@@ -1197,8 +1215,7 @@ fn test_parse_string_interpolation_dotted_path() {
 
 #[test]
 fn test_parse_string_multiple_interpolations() {
-    let input = r#"let x = "${host}:${port}""#;
-    let module = parse(input).unwrap();
+    let module = spin! { let x = "${host}:${port}" };
     match &module.items[0] {
         Item::LetBinding(l) => match &l.value {
             Expr::StringInterpolation(parts) => {
@@ -1215,8 +1232,7 @@ fn test_parse_string_multiple_interpolations() {
 
 #[test]
 fn test_parse_string_interpolation_trailing_literal() {
-    let input = r#"let x = "${name}!""#;
-    let module = parse(input).unwrap();
+    let module = spin! { let x = "${name}!" };
     match &module.items[0] {
         Item::LetBinding(l) => match &l.value {
             Expr::StringInterpolation(parts) => {
@@ -1232,8 +1248,7 @@ fn test_parse_string_interpolation_trailing_literal() {
 
 #[test]
 fn test_parse_string_interpolation_deep_dotted_path() {
-    let input = r#"let x = "${a.b.c}""#;
-    let module = parse(input).unwrap();
+    let module = spin! { let x = "${a.b.c}" };
     match &module.items[0] {
         Item::LetBinding(l) => match &l.value {
             Expr::StringInterpolation(parts) => {

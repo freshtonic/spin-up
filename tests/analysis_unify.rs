@@ -1,7 +1,6 @@
 use spin_up::analysis::registry::TypeRegistry;
 use spin_up::analysis::unify::unify;
 use spin_up::diagnostics::DiagnosticKind;
-use spin_up::parser;
 use spin_up::spin;
 
 #[test]
@@ -67,19 +66,17 @@ fn test_unify_optional_field_can_be_omitted() {
 
 #[test]
 fn test_unify_default_field_can_be_omitted() {
-    // Contains #[default("localhost")] attribute — cannot use spin! macro
-    let source = r#"
-interface Endpoint =
-  host: str,
-  #[default("localhost")]
-  fallback: str,
-;
-type Server = hostname: str;
-impl Endpoint for Server {
-  host: self.hostname,
-}
-"#;
-    let module = parser::parse(source).unwrap();
+    let module = spin! {
+        interface Endpoint =
+            host: str,
+            #[default("localhost")]
+            fallback: str,
+        ;
+        type Server = hostname: str;
+        impl Endpoint for Server {
+            host: self.hostname,
+        }
+    };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
 

@@ -1,4 +1,4 @@
-use spin_up::ast::Item;
+use spin_up::ast::{Expr, Item};
 use spin_up::spin;
 
 #[test]
@@ -77,5 +77,73 @@ fn test_spin_macro_produces_same_result_as_parse() {
             assert_eq!(a.fields[0].name, b.fields[0].name);
         }
         _ => panic!("expected both to be RecordDef"),
+    }
+}
+
+// --- Tests proving proc-macro removes previous limitations ---
+
+#[test]
+fn test_spin_macro_with_attributes() {
+    let module = spin! {
+        #[lang-item]
+        type Foo = x: u32;
+    };
+    match &module.items[0] {
+        Item::RecordDef(r) => {
+            assert_eq!(r.attributes.len(), 1);
+            assert_eq!(r.attributes[0].name, "lang-item");
+            assert!(r.attributes[0].args.is_none());
+        }
+        other => panic!("expected RecordDef, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_spin_macro_with_attribute_args() {
+    let module = spin! {
+        #[delegate(PostgresEndpoint)]
+        type Proxy = frontend: str;
+    };
+    match &module.items[0] {
+        Item::RecordDef(r) => {
+            assert_eq!(r.attributes.len(), 1);
+            assert_eq!(r.attributes[0].name, "delegate");
+            assert_eq!(r.attributes[0].args.as_deref(), Some("PostgresEndpoint"));
+        }
+        other => panic!("expected RecordDef, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_spin_macro_with_string_interpolation() {
+    let module = spin! {
+        let x = "hello ${name}"
+    };
+    match &module.items[0] {
+        Item::LetBinding(l) => {
+            assert!(
+                matches!(&l.value, Expr::StringInterpolation(_)),
+                "expected StringInterpolation, got {:?}",
+                l.value
+            );
+        }
+        other => panic!("expected LetBinding, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_spin_macro_with_dotted_interpolation() {
+    let module = spin! {
+        let x = "host: ${postgres.host}"
+    };
+    match &module.items[0] {
+        Item::LetBinding(l) => {
+            assert!(
+                matches!(&l.value, Expr::StringInterpolation(_)),
+                "expected StringInterpolation, got {:?}",
+                l.value
+            );
+        }
+        other => panic!("expected LetBinding, got {other:?}"),
     }
 }
