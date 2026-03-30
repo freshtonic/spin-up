@@ -220,6 +220,7 @@ impl Parser {
 
         // Disambiguate product vs sum:
         // - Ident followed by Colon => product type (field: Type)
+        // - HashBracket => field attribute, so product type
         // - Otherwise => sum type (variants)
         let is_product = match self.tokens.get(self.pos) {
             Some(Spanned {
@@ -232,6 +233,10 @@ impl Parser {
                     ..
                 })
             ),
+            Some(Spanned {
+                kind: Token::HashBracket,
+                ..
+            }) => true,
             _ => false,
         };
 
@@ -808,15 +813,23 @@ impl Parser {
     }
 
     fn parse_field(&mut self) -> Result<crate::ast::Field, ParseError> {
+        let attributes = self.parse_attributes()?;
         let (name, name_span) = self.expect_ident()?;
         self.expect_token(Token::Colon)?;
         let ty = self.parse_type_expr()?;
         let end = self.previous_span_end();
 
+        let start = if let Some(attr) = attributes.first() {
+            attr.span.start
+        } else {
+            name_span.start
+        };
+
         Ok(crate::ast::Field {
             name,
             ty,
-            span: name_span.start..end,
+            attributes,
+            span: start..end,
         })
     }
 

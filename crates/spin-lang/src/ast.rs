@@ -65,6 +65,7 @@ pub struct Variant {
 pub struct Field {
     pub name: String,
     pub ty: TypeExpr,
+    pub attributes: Vec<Attribute>,
     pub span: Range<usize>,
 }
 

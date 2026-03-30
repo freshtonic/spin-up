@@ -71,7 +71,11 @@ fn validate_constraint_expr(
                 validate_constraint_expr(left, field, source_name, diags);
                 validate_constraint_expr(right, field, source_name, diags);
             }
-            BinaryOp::Gte | BinaryOp::Lte | BinaryOp::Gt | BinaryOp::Lt | BinaryOp::Eq
+            BinaryOp::Gte
+            | BinaryOp::Lte
+            | BinaryOp::Gt
+            | BinaryOp::Lt
+            | BinaryOp::Eq
             | BinaryOp::NotEq => {
                 validate_comparison_operands(left, right, field, source_name, diags);
             }

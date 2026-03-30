@@ -39,6 +39,11 @@ fn main() {
                 spin_up::analysis::constraints::check_constraints(&resolve_result.registry);
             diagnostics.merge(constraint_diags);
 
+            // Phase 5: Delegate/target validation
+            let delegate_diags =
+                spin_up::analysis::delegate::check_delegates(&resolve_result.registry);
+            diagnostics.merge(delegate_diags);
+
             // Report results
             if diagnostics.is_ok() {
                 println!("\u{2713} No errors found");

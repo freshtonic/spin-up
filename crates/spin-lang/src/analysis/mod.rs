@@ -1,4 +1,5 @@
 pub mod constraints;
+pub mod delegate;
 pub mod graph;
 pub mod infer;
 pub mod registry;

@@ -71,6 +71,11 @@ impl TypeRegistry {
         &self.bindings
     }
 
+    /// Return all registered types (records and choices).
+    pub fn all_types(&self) -> &HashMap<String, TypeDef> {
+        &self.types
+    }
+
     /// Return all impl blocks whose implementing type matches `type_name`.
     pub fn lookup_impls_for_type(&self, type_name: &str) -> Vec<&ImplBlock> {
         self.impls
