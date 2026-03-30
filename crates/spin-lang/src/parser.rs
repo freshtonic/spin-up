@@ -1,5 +1,6 @@
 use crate::ast::{
-    Attribute, BinaryOp, Expr, FieldInit, Import, Item, LetBinding, Module, UnaryOp, Variant,
+    AsInterfaceBlock, Attribute, BinaryOp, Expr, FieldInit, Import, Item, LetBinding, Module,
+    UnaryOp, Variant,
 };
 use crate::lexer::{self, Spanned, Token};
 use thiserror::Error;
@@ -576,12 +577,12 @@ impl Parser {
         // Ident { field: expr, ... } — TypeConstruction
         if self.check(&Token::LBrace) && self.is_field_init_block() {
             self.advance(); // consume '{'
-            let fields = self.parse_field_init_list(Token::RBrace)?;
+            let (fields, as_interfaces) = self.parse_construction_body()?;
             self.expect_token(Token::RBrace)?;
             return Ok(Expr::TypeConstruction {
                 type_name: name,
                 fields,
-                as_interfaces: vec![],
+                as_interfaces,
             });
         }
 
@@ -605,11 +606,13 @@ impl Parser {
     }
 
     /// Look ahead to determine if the block after `{` contains `Ident:` pattern
-    /// (indicating field initializers rather than other constructs).
+    /// (indicating field initializers) or `<as` pattern (indicating as-interface blocks).
     fn is_field_init_block(&self) -> bool {
-        // Check if tokens at pos+1 and pos+2 are Ident and Colon
+        // Check if tokens at pos+1 and pos+2 are Ident:Colon or <as (Lt followed by Ident("as"))
+        let t1 = self.tokens.get(self.pos + 1);
+        let t2 = self.tokens.get(self.pos + 2);
         matches!(
-            (self.tokens.get(self.pos + 1), self.tokens.get(self.pos + 2)),
+            (t1, t2),
             (
                 Some(Spanned {
                     kind: Token::Ident(_),
@@ -620,6 +623,18 @@ impl Parser {
                     ..
                 })
             )
+        ) || matches!(
+            (t1, t2),
+            (
+                Some(Spanned {
+                    kind: Token::Lt,
+                    ..
+                }),
+                Some(Spanned {
+                    kind: Token::Ident(name),
+                    ..
+                })
+            ) if name == "as"
         )
     }
 
@@ -658,6 +673,87 @@ impl Parser {
             }
         }
         Ok(fields)
+    }
+
+    /// Parse the body of a type construction: a mix of `name: expr` field inits
+    /// and `<as Interface> { ... }` blocks, terminated by `}` (which is NOT consumed).
+    fn parse_construction_body(
+        &mut self,
+    ) -> Result<(Vec<FieldInit>, Vec<AsInterfaceBlock>), ParseError> {
+        let mut fields = Vec::new();
+        let mut as_interfaces = Vec::new();
+        while !self.check(&Token::RBrace) {
+            if self.is_as_interface_start() {
+                as_interfaces.push(self.parse_as_interface_block()?);
+            } else {
+                let (name, name_span) = self.expect_ident()?;
+                self.expect_token(Token::Colon)?;
+                let value = self.parse_expr()?;
+                let end = self.previous_span_end();
+                fields.push(FieldInit {
+                    name,
+                    value,
+                    span: name_span.start..end,
+                });
+            }
+            if self.check(&Token::Comma) {
+                self.advance();
+            }
+        }
+        Ok((fields, as_interfaces))
+    }
+
+    /// Check if the current position starts an `<as Interface>` block:
+    /// Token::Lt followed by Token::Ident("as").
+    fn is_as_interface_start(&self) -> bool {
+        matches!(
+            (self.tokens.get(self.pos), self.tokens.get(self.pos + 1)),
+            (
+                Some(Spanned {
+                    kind: Token::Lt,
+                    ..
+                }),
+                Some(Spanned {
+                    kind: Token::Ident(name),
+                    ..
+                })
+            ) if name == "as"
+        )
+    }
+
+    /// Parse `<as InterfaceName> { field: expr, ... }`.
+    /// Assumes the current token is `<`.
+    fn parse_as_interface_block(&mut self) -> Result<AsInterfaceBlock, ParseError> {
+        let start_span = self.expect_token(Token::Lt)?; // consume '<'
+        // Expect Ident("as")
+        match self.advance() {
+            Some(Spanned {
+                kind: Token::Ident(name),
+                ..
+            }) if name == "as" => {}
+            Some(Spanned { kind, span }) => {
+                return Err(ParseError::Expected {
+                    expected: "\"as\"".to_string(),
+                    found: format!("{kind:?}"),
+                    pos: span.start,
+                });
+            }
+            None => {
+                return Err(ParseError::UnexpectedEof {
+                    expected: "\"as\"".to_string(),
+                });
+            }
+        }
+        let (interface_name, _) = self.expect_ident()?;
+        self.expect_token(Token::Gt)?; // consume '>'
+        self.expect_token(Token::LBrace)?; // consume '{'
+        let fields = self.parse_field_init_list(Token::RBrace)?;
+        let end_span = self.expect_token(Token::RBrace)?; // consume '}'
+        Ok(AsInterfaceBlock {
+            interface_name,
+            fields,
+            span: start_span.start..end_span.end,
+        })
     }
 
     fn parse_expr_list(&mut self, terminator: Token) -> Result<Vec<Expr>, ParseError> {

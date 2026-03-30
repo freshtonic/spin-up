@@ -1079,7 +1079,8 @@ fn test_interface_field_construction() {
 
 #[test]
 fn test_parse_impl_block() {
-    let input = "impl Endpoint for MyServer {\n  host: self.hostname,\n  port: self.config.port,\n}";
+    let input =
+        "impl Endpoint for MyServer {\n  host: self.hostname,\n  port: self.config.port,\n}";
     let module = parse(input).unwrap();
     assert_eq!(module.items.len(), 1);
     match &module.items[0] {
@@ -1104,5 +1105,37 @@ fn test_parse_impl_block_with_expression() {
             assert!(matches!(&i.mappings[0].value, Expr::StringLit(s) if s == "hello"));
         }
         other => panic!("expected ImplBlock, got {other:?}"),
+    }
+}
+
+// --- Phase 3a Task 10: Parser — As-Interface Blocks in Type Constructions ---
+
+#[test]
+fn test_parse_as_interface_in_construction() {
+    let input = r#"let x = MyType {
+  name: "foo",
+  <as Endpoint> {
+    port: 8080,
+  }
+}"#;
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::LetBinding(l) => match &l.value {
+            Expr::TypeConstruction {
+                type_name,
+                fields,
+                as_interfaces,
+            } => {
+                assert_eq!(type_name, "MyType");
+                assert_eq!(fields.len(), 1);
+                assert_eq!(fields[0].name, "name");
+                assert_eq!(as_interfaces.len(), 1);
+                assert_eq!(as_interfaces[0].interface_name, "Endpoint");
+                assert_eq!(as_interfaces[0].fields.len(), 1);
+                assert_eq!(as_interfaces[0].fields[0].name, "port");
+            }
+            other => panic!("expected TypeConstruction, got {other:?}"),
+        },
+        other => panic!("expected LetBinding, got {other:?}"),
     }
 }
