@@ -121,6 +121,8 @@ pub enum Expr {
         type_name: String,
         fields: Vec<FieldInit>,
     },
+    /// Function call with positional args: `Some(42)`, `my_func(a, b)`
+    Call { name: String, args: Vec<Expr> },
     /// Binary operation: `it >= 15`, `it < 17`, `a && b`
     BinaryOp {
         left: Box<Expr>,

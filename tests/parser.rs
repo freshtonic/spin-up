@@ -1,7 +1,7 @@
 use spin_up::ast::{
-    AsInterfaceBlock, Attribute, BinaryOp, ChoiceDef, Expr, FieldInit, FieldMapping,
-    ImplBlock, InterfaceDef, InterfaceField, Item, LetBinding, PrimitiveType, RecordDef, TypeExpr,
-    UnaryOp, Variant,
+    AsInterfaceBlock, Attribute, BinaryOp, ChoiceDef, Expr, FieldInit, FieldMapping, ImplBlock,
+    InterfaceDef, InterfaceField, Item, LetBinding, PrimitiveType, RecordDef, TypeExpr, UnaryOp,
+    Variant,
 };
 use spin_up::parser::parse;
 
@@ -338,10 +338,7 @@ fn test_parse_attribute_with_string_args() {
         Item::RecordDef(r) => {
             assert_eq!(r.attributes.len(), 1);
             assert_eq!(r.attributes[0].name, "default");
-            assert_eq!(
-                r.attributes[0].args.as_deref(),
-                Some("\"postgres\"")
-            );
+            assert_eq!(r.attributes[0].args.as_deref(), Some("\"postgres\""));
         }
         other => panic!("expected RecordDef, got {other:?}"),
     }
@@ -725,9 +722,7 @@ fn test_expr_type_construction_with_as_interface() {
         }],
     };
     match expr {
-        Expr::TypeConstruction {
-            as_interfaces, ..
-        } => {
+        Expr::TypeConstruction { as_interfaces, .. } => {
             assert_eq!(as_interfaces.len(), 1);
             assert_eq!(as_interfaces[0].interface_name, "Endpoint");
             assert_eq!(as_interfaces[0].fields.len(), 1);
