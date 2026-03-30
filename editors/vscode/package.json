@@ -1,0 +1,40 @@
+{
+  "name": "spin-lang",
+  "displayName": "Spin Language",
+  "description": "Syntax highlighting for .spin files",
+  "version": "0.1.0",
+  "publisher": "freshtonic",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/freshtonic/spin-up"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "spin",
+        "aliases": [
+          "Spin",
+          "spin"
+        ],
+        "extensions": [
+          ".spin"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "spin",
+        "scopeName": "source.spin",
+        "path": "./syntaxes/spin.tmLanguage.json"
+      }
+    ]
+  }
+}
