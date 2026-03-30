@@ -1,9 +1,13 @@
+use crate::analysis::infer::{TypeInfo, infer_expr_type, type_expr_to_type_info, types_compatible};
 use crate::analysis::registry::TypeRegistry;
 use crate::ast::TypeExpr;
 use crate::diagnostics::{DiagnosticKind, Diagnostics};
 
 /// Check impl completeness: every required interface field must be mapped
 /// (or have a default / be `Option<T>`).
+///
+/// Also checks that mapped expression types are compatible with the
+/// interface field's declared type.
 ///
 /// Returns collected diagnostics (non-fatal).
 pub fn unify(registry: &TypeRegistry) -> Diagnostics {
@@ -36,8 +40,23 @@ pub fn unify(registry: &TypeRegistry) -> Diagnostics {
 
         // Check each interface field is covered
         for field in &interface.fields {
-            let has_mapping = impl_block.mappings.iter().any(|m| m.name == field.name);
-            if has_mapping {
+            let mapping = impl_block.mappings.iter().find(|m| m.name == field.name);
+
+            if let Some(mapping) = mapping {
+                // Field is mapped -- check type compatibility
+                let expected = type_expr_to_type_info(&field.ty);
+                let actual = infer_expr_type(&mapping.value, &impl_block.type_name, registry);
+
+                if !matches!(actual, TypeInfo::Unknown) && !types_compatible(&expected, &actual) {
+                    diags.error(
+                        DiagnosticKind::TypeMismatch {
+                            expected: expected.to_string(),
+                            found: actual.to_string(),
+                        },
+                        mapping.span.clone(),
+                        "unify",
+                    );
+                }
                 continue;
             }
 
