@@ -1,4 +1,4 @@
-use spin_up::ast::{Attribute, ChoiceDef, Expr, Item, PrimitiveType, RecordDef, TypeExpr, Variant};
+use spin_up::ast::{Attribute, ChoiceDef, Item, PrimitiveType, RecordDef, TypeExpr, Variant};
 use spin_up::parser::parse;
 
 // Note: The `resource` keyword has been removed. Resource definitions now use
@@ -152,58 +152,6 @@ fn test_parse_import_then_resource() {
             assert_eq!(r.name, "Postgres");
         }
         other => panic!("expected RecordDef, got {other:?}"),
-    }
-}
-
-#[test]
-fn test_parse_supplies_declaration() {
-    let input = r#"import postgres
-
-supplies postgres::Postgres {
-  host = "localhost",
-  port = 5432,
-}"#;
-    let module = parse(input).unwrap();
-    assert_eq!(module.items.len(), 1);
-    match &module.items[0] {
-        Item::SuppliesDef(s) => {
-            assert_eq!(s.resource_path.module, "postgres");
-            assert_eq!(s.resource_path.name, "Postgres");
-            assert_eq!(s.field_assignments.len(), 2);
-            assert_eq!(s.field_assignments[0].name, "host");
-            assert_eq!(s.field_assignments[1].name, "port");
-        }
-        other => panic!("expected SuppliesDef, got {other:?}"),
-    }
-}
-
-#[test]
-fn test_parse_supplies_string_value() {
-    let input = r#"supplies postgres::Postgres {
-  host = "localhost",
-}"#;
-    let module = parse(input).unwrap();
-    match &module.items[0] {
-        Item::SuppliesDef(s) => match &s.field_assignments[0].value {
-            Expr::StringLit(v) => assert_eq!(v, "localhost"),
-            other => panic!("expected StringLit, got {other:?}"),
-        },
-        other => panic!("expected SuppliesDef, got {other:?}"),
-    }
-}
-
-#[test]
-fn test_parse_supplies_number_value() {
-    let input = r#"supplies postgres::Postgres {
-  port = 5432,
-}"#;
-    let module = parse(input).unwrap();
-    match &module.items[0] {
-        Item::SuppliesDef(s) => match &s.field_assignments[0].value {
-            Expr::Number(v) => assert_eq!(v, "5432"),
-            other => panic!("expected Number, got {other:?}"),
-        },
-        other => panic!("expected SuppliesDef, got {other:?}"),
     }
 }
 

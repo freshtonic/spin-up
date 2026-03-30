@@ -53,7 +53,7 @@ type Tls =
 
 **Consumers constrain selectively.** A consumer declares "I need a Postgres" and only puts constraints on the fields it cares about. Unconstrained fields are don't-cares. Constraints are type-appropriate (e.g., semver ranges on semver fields).
 
-**Providers supply selectively.** A provider declares `supplies Postgres` and supports a subset of fields. A lightweight provider might not support `tls` at all — fine as long as no consumer constrains it.
+**Providers supply selectively.** A provider implements a type definition (via `impl Interface for Type`) and supports a subset of fields. A lightweight provider might not support `tls` at all — fine as long as no consumer constrains it.
 
 **Static verification.** Before launching anything, spin checks that for every consumer-constrained field, the chosen provider supports that field. A mismatch is a static error.
 

@@ -174,7 +174,6 @@ fn find_item_by_name<'a>(items: &'a [ast::Item], name: &str) -> Option<&'a ast::
     items.iter().find(|item| match item {
         ast::Item::RecordDef(r) => r.name == name,
         ast::Item::ChoiceDef(c) => c.name == name,
-        ast::Item::SuppliesDef(_) => false,
     })
 }
 

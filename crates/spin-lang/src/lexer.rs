@@ -6,7 +6,6 @@ use thiserror::Error;
 pub enum Token {
     // Keywords
     Import,
-    Supplies,
     If,
     Then,
     Else,
@@ -237,7 +236,6 @@ pub fn lex(input: &str) -> Result<Vec<Spanned>, LexError> {
                 let end = start + value.len();
                 let kind = match value.as_str() {
                     "import" => Token::Import,
-                    "supplies" => Token::Supplies,
                     "if" => Token::If,
                     "then" => Token::Then,
                     "else" => Token::Else,

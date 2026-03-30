@@ -63,16 +63,10 @@ pub enum NormalizedTypeExpr {
 }
 
 /// Normalize an AST item by stripping all span information for structural comparison.
-///
-/// Only `RecordDef` and `ChoiceDef` items are supported. `SuppliesDef` will
-/// panic, as it is not used in the proc-macro comparison path.
 pub fn normalize_item(item: &Item) -> NormalizedItem {
     match item {
         Item::RecordDef(record) => NormalizedItem::RecordDef(normalize_record(record)),
         Item::ChoiceDef(choice) => NormalizedItem::ChoiceDef(normalize_choice(choice)),
-        Item::SuppliesDef(_) => {
-            panic!("normalize_item: SuppliesDef is not supported in the normalization path")
-        }
     }
 }
 
