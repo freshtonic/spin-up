@@ -65,6 +65,9 @@ pub enum Token {
     Gt,
     Lt,
     Pipe,
+    And,       // &&
+    Or,        // ||
+    Bang,      // !
     Arrow,     // ->
     Semicolon, // ;
 }
@@ -300,6 +303,13 @@ pub fn lex(input: &str) -> Result<Vec<Spanned>, LexError> {
                     span: pos..pos + 2,
                 });
             }
+            '!' => {
+                chars.next();
+                tokens.push(Spanned {
+                    kind: Token::Bang,
+                    span: pos..pos + 1,
+                });
+            }
             '>' if matches!(chars.clone().nth(1), Some((_, '='))) => {
                 chars.next();
                 chars.next();
@@ -313,6 +323,14 @@ pub fn lex(input: &str) -> Result<Vec<Spanned>, LexError> {
                 chars.next();
                 tokens.push(Spanned {
                     kind: Token::Lte,
+                    span: pos..pos + 2,
+                });
+            }
+            '&' if matches!(chars.clone().nth(1), Some((_, '&'))) => {
+                chars.next();
+                chars.next();
+                tokens.push(Spanned {
+                    kind: Token::And,
                     span: pos..pos + 2,
                 });
             }
@@ -407,6 +425,14 @@ pub fn lex(input: &str) -> Result<Vec<Spanned>, LexError> {
                 tokens.push(Spanned {
                     kind: Token::Lt,
                     span: pos..pos + 1,
+                });
+            }
+            '|' if matches!(chars.clone().nth(1), Some((_, '|'))) => {
+                chars.next();
+                chars.next();
+                tokens.push(Spanned {
+                    kind: Token::Or,
+                    span: pos..pos + 2,
                 });
             }
             '|' => {

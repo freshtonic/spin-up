@@ -195,6 +195,13 @@ fn test_lex_attribute_before_type() {
 }
 
 #[test]
+fn test_lex_logical_operators() {
+    let tokens = lex("&& || !").unwrap();
+    let kinds: Vec<_> = tokens.iter().map(|t| &t.kind).collect();
+    assert_eq!(kinds, &[&Token::And, &Token::Or, &Token::Bang]);
+}
+
+#[test]
 fn test_lex_phase3_keywords() {
     let tokens = lex("interface impl for let it").unwrap();
     let kinds: Vec<_> = tokens.iter().map(|t| &t.kind).collect();
