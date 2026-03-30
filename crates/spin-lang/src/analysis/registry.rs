@@ -61,6 +61,11 @@ impl TypeRegistry {
         self.bindings.get(name)
     }
 
+    /// Return all impl blocks in the registry.
+    pub fn all_impls(&self) -> &[ImplBlock] {
+        &self.impls
+    }
+
     /// Return all impl blocks whose implementing type matches `type_name`.
     pub fn lookup_impls_for_type(&self, type_name: &str) -> Vec<&ImplBlock> {
         self.impls
