@@ -123,6 +123,13 @@ fn collect_ident_refs(expr: &Expr, known: &HashSet<String>, out: &mut HashSet<St
             collect_ident_refs(object, known, out);
         }
         // Leaf nodes that cannot contain binding references.
+        Expr::StringInterpolation(parts) => {
+            for part in parts {
+                if let crate::ast::StringPart::Expr(inner) = part {
+                    collect_ident_refs(inner, known, out);
+                }
+            }
+        }
         Expr::StringLit(_)
         | Expr::Number(_)
         | Expr::BoolLit(_)

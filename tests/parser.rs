@@ -1,7 +1,7 @@
 use spin_up::ast::{
     AsInterfaceBlock, Attribute, BinaryOp, ChoiceDef, Expr, FieldInit, FieldMapping, ImplBlock,
-    InterfaceDef, InterfaceField, Item, LetBinding, PrimitiveType, RecordDef, TypeExpr, UnaryOp,
-    Variant,
+    InterfaceDef, InterfaceField, Item, LetBinding, PrimitiveType, RecordDef, StringPart, TypeExpr,
+    UnaryOp, Variant,
 };
 use spin_up::parser::parse;
 
@@ -1135,6 +1135,125 @@ fn test_parse_as_interface_in_construction() {
                 assert_eq!(as_interfaces[0].fields[0].name, "port");
             }
             other => panic!("expected TypeConstruction, got {other:?}"),
+        },
+        other => panic!("expected LetBinding, got {other:?}"),
+    }
+}
+
+// --- Step 4: String Interpolation Parsing ---
+
+#[test]
+fn test_parse_plain_string_no_interpolation() {
+    let input = r#"let x = "hello world""#;
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::LetBinding(l) => {
+            assert!(matches!(&l.value, Expr::StringLit(s) if s == "hello world"));
+        }
+        other => panic!("expected LetBinding, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_string_interpolation_simple() {
+    let input = r#"let x = "hello ${name}""#;
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::LetBinding(l) => match &l.value {
+            Expr::StringInterpolation(parts) => {
+                assert_eq!(parts.len(), 2);
+                assert!(matches!(&parts[0], StringPart::Literal(s) if s == "hello "));
+                assert!(matches!(&parts[1], StringPart::Expr(Expr::Ident(n)) if n == "name"));
+            }
+            other => panic!("expected StringInterpolation, got {other:?}"),
+        },
+        other => panic!("expected LetBinding, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_string_interpolation_dotted_path() {
+    let input = r#"let x = "host: ${postgres.host}""#;
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::LetBinding(l) => match &l.value {
+            Expr::StringInterpolation(parts) => {
+                assert_eq!(parts.len(), 2);
+                assert!(matches!(&parts[0], StringPart::Literal(s) if s == "host: "));
+                match &parts[1] {
+                    StringPart::Expr(Expr::FieldAccess { field, .. }) => {
+                        assert_eq!(field, "host");
+                    }
+                    other => panic!("expected FieldAccess, got {other:?}"),
+                }
+            }
+            other => panic!("expected StringInterpolation, got {other:?}"),
+        },
+        other => panic!("expected LetBinding, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_string_multiple_interpolations() {
+    let input = r#"let x = "${host}:${port}""#;
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::LetBinding(l) => match &l.value {
+            Expr::StringInterpolation(parts) => {
+                assert_eq!(parts.len(), 3);
+                assert!(matches!(&parts[0], StringPart::Expr(Expr::Ident(n)) if n == "host"));
+                assert!(matches!(&parts[1], StringPart::Literal(s) if s == ":"));
+                assert!(matches!(&parts[2], StringPart::Expr(Expr::Ident(n)) if n == "port"));
+            }
+            other => panic!("expected StringInterpolation, got {other:?}"),
+        },
+        other => panic!("expected LetBinding, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_string_interpolation_trailing_literal() {
+    let input = r#"let x = "${name}!""#;
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::LetBinding(l) => match &l.value {
+            Expr::StringInterpolation(parts) => {
+                assert_eq!(parts.len(), 2);
+                assert!(matches!(&parts[0], StringPart::Expr(Expr::Ident(n)) if n == "name"));
+                assert!(matches!(&parts[1], StringPart::Literal(s) if s == "!"));
+            }
+            other => panic!("expected StringInterpolation, got {other:?}"),
+        },
+        other => panic!("expected LetBinding, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_string_interpolation_deep_dotted_path() {
+    let input = r#"let x = "${a.b.c}""#;
+    let module = parse(input).unwrap();
+    match &module.items[0] {
+        Item::LetBinding(l) => match &l.value {
+            Expr::StringInterpolation(parts) => {
+                assert_eq!(parts.len(), 1);
+                match &parts[0] {
+                    StringPart::Expr(Expr::FieldAccess { object, field }) => {
+                        assert_eq!(field, "c");
+                        match object.as_ref() {
+                            Expr::FieldAccess {
+                                object: inner,
+                                field: mid,
+                            } => {
+                                assert_eq!(mid, "b");
+                                assert!(matches!(inner.as_ref(), Expr::Ident(n) if n == "a"));
+                            }
+                            other => panic!("expected nested FieldAccess, got {other:?}"),
+                        }
+                    }
+                    other => panic!("expected FieldAccess, got {other:?}"),
+                }
+            }
+            other => panic!("expected StringInterpolation, got {other:?}"),
         },
         other => panic!("expected LetBinding, got {other:?}"),
     }

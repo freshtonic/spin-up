@@ -92,11 +92,22 @@ pub enum TypeExpr {
     Unit,
 }
 
+/// A segment of an interpolated string
+#[derive(Debug, Clone)]
+pub enum StringPart {
+    /// Literal text segment
+    Literal(String),
+    /// Interpolated expression: `${expr}`
+    Expr(Expr),
+}
+
 /// An expression
 #[derive(Debug, Clone)]
 pub enum Expr {
     /// String literal: `"hello"`
     StringLit(String),
+    /// String with interpolated expressions: `"hello ${name}"`
+    StringInterpolation(Vec<StringPart>),
     /// Numeric literal: `42`, `3.14`, `0xff`
     Number(String),
     /// Boolean literal: `true`, `false`

@@ -75,7 +75,9 @@ pub fn infer_expr_type(expr: &Expr, impl_type_name: &str, registry: &TypeRegistr
     match expr {
         Expr::Self_ => TypeInfo::Named(impl_type_name.to_string()),
 
-        Expr::StringLit(_) => TypeInfo::Primitive(PrimitiveType::Str),
+        Expr::StringLit(_) | Expr::StringInterpolation(_) => {
+            TypeInfo::Primitive(PrimitiveType::Str)
+        }
 
         Expr::BoolLit(_) => TypeInfo::Primitive(PrimitiveType::Bool),
 

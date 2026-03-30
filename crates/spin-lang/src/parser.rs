@@ -1,6 +1,6 @@
 use crate::ast::{
     AsInterfaceBlock, Attribute, BinaryOp, Expr, FieldInit, Import, Item, LetBinding, Module,
-    UnaryOp, Variant,
+    StringPart, UnaryOp, Variant,
 };
 use crate::lexer::{self, Spanned, Token};
 use thiserror::Error;
@@ -494,7 +494,7 @@ impl Parser {
                 ..
             }) => {
                 if let Token::StringLit(s) = &self.advance().unwrap().kind {
-                    Expr::StringLit(s.clone())
+                    parse_string_literal(s)
                 } else {
                     unreachable!()
                 }
@@ -987,6 +987,71 @@ impl Parser {
             0
         }
     }
+}
+
+/// Parse a string literal, detecting `${...}` interpolation sequences.
+///
+/// If no interpolations are found, returns `Expr::StringLit`.
+/// If interpolations are present, returns `Expr::StringInterpolation` with a
+/// mix of `StringPart::Literal` and `StringPart::Expr` segments.
+///
+/// The expression inside `${...}` is parsed as a dotted identifier path,
+/// e.g. `name` becomes `Expr::Ident("name")` and `postgres.host` becomes
+/// `Expr::FieldAccess { object: Ident("postgres"), field: "host" }`.
+fn parse_string_literal(s: &str) -> Expr {
+    if !s.contains("${") {
+        return Expr::StringLit(s.to_string());
+    }
+
+    let mut parts = Vec::new();
+    let mut rest = s;
+
+    while !rest.is_empty() {
+        if let Some(dollar_pos) = rest.find("${") {
+            // Push any literal text before the interpolation
+            if dollar_pos > 0 {
+                parts.push(StringPart::Literal(rest[..dollar_pos].to_string()));
+            }
+
+            // Find the closing brace
+            let after_open = &rest[dollar_pos + 2..];
+            match after_open.find('}') {
+                Some(close_pos) => {
+                    let expr_text = &after_open[..close_pos];
+                    parts.push(StringPart::Expr(parse_dotted_path(expr_text)));
+                    rest = &after_open[close_pos + 1..];
+                }
+                None => {
+                    // No closing brace found — treat remainder as literal
+                    parts.push(StringPart::Literal(rest.to_string()));
+                    break;
+                }
+            }
+        } else {
+            // No more interpolations — push remaining text as literal
+            parts.push(StringPart::Literal(rest.to_string()));
+            break;
+        }
+    }
+
+    Expr::StringInterpolation(parts)
+}
+
+/// Parse a dotted path like `"postgres.host"` into a chain of `FieldAccess` expressions.
+///
+/// `"name"` → `Expr::Ident("name")`
+/// `"a.b"` → `Expr::FieldAccess { object: Ident("a"), field: "b" }`
+/// `"a.b.c"` → `Expr::FieldAccess { object: FieldAccess { object: Ident("a"), field: "b" }, field: "c" }`
+fn parse_dotted_path(path: &str) -> Expr {
+    let segments: Vec<&str> = path.split('.').collect();
+    let mut expr = Expr::Ident(segments[0].trim().to_string());
+    for segment in &segments[1..] {
+        expr = Expr::FieldAccess {
+            object: Box::new(expr),
+            field: segment.trim().to_string(),
+        };
+    }
+    expr
 }
 
 /// Convert a token to its string representation for raw attribute argument capture.
