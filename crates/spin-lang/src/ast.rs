@@ -150,9 +150,11 @@ pub enum Expr {
     None_,
     /// Regex literal: `r"pattern"`
     RegexLit(String),
-    /// List literal: `[1, 2, 3]`
+    /// List literal: `#[1, 2, 3]`
     ListLit(Vec<Expr>),
-    /// HashMap literal: `{key: value, ...}`
+    /// Set literal: `#("a", "b", "c")`
+    SetLit(Vec<Expr>),
+    /// HashMap literal: `#{"key": "value", ...}`
     HashMapLit(Vec<(Expr, Expr)>),
 }
 

@@ -21,16 +21,38 @@ pub fn tokens_to_spin_source(tokens: TokenStream) -> String {
     while let Some(tt) = iter.next() {
         match tt {
             TokenTree::Punct(ref p) if p.as_char() == '#' => {
-                // Check if next token is a bracketed group (attribute syntax)
-                if matches!(iter.peek(), Some(TokenTree::Group(g)) if g.delimiter() == Delimiter::Bracket)
-                {
-                    let group = iter.next().unwrap();
-                    if let TokenTree::Group(g) = group {
-                        result.push_str("#[");
-                        result.push_str(&tokens_to_spin_source(g.stream()));
-                        result.push(']');
-                        continue;
+                match iter.peek() {
+                    // #[...] — attribute syntax (Rust tokenizes brackets as Group)
+                    Some(TokenTree::Group(g)) if g.delimiter() == Delimiter::Bracket => {
+                        let group = iter.next().unwrap();
+                        if let TokenTree::Group(g) = group {
+                            result.push_str("#[");
+                            result.push_str(&tokens_to_spin_source(g.stream()));
+                            result.push(']');
+                            continue;
+                        }
                     }
+                    // #{...} — hashmap literal
+                    Some(TokenTree::Group(g)) if g.delimiter() == Delimiter::Brace => {
+                        let group = iter.next().unwrap();
+                        if let TokenTree::Group(g) = group {
+                            result.push_str("#{");
+                            result.push_str(&tokens_to_spin_source(g.stream()));
+                            result.push('}');
+                            continue;
+                        }
+                    }
+                    // #(...) — set literal
+                    Some(TokenTree::Group(g)) if g.delimiter() == Delimiter::Parenthesis => {
+                        let group = iter.next().unwrap();
+                        if let TokenTree::Group(g) = group {
+                            result.push_str("#(");
+                            result.push_str(&tokens_to_spin_source(g.stream()));
+                            result.push(')');
+                            continue;
+                        }
+                    }
+                    _ => {}
                 }
                 result.push('#');
             }

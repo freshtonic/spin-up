@@ -1220,12 +1220,12 @@ fn test_parse_string_interpolation_deep_dotted_path() {
 }
 
 // --- List literal parsing in expression context ---
+// Note: #[...] list literals cannot use spin! macro because Rust's tokenizer
+// treats #[ as attribute syntax. These tests use parse() directly.
 
 #[test]
 fn test_parse_list_literal() {
-    let module = spin! {
-        let xs = [1, 2, 3]
-    };
+    let module = parse("let xs = #[1, 2, 3]").unwrap();
     match &module.items[0] {
         Item::LetBinding(l) => match &l.value {
             Expr::ListLit(items) => {
@@ -1242,9 +1242,7 @@ fn test_parse_list_literal() {
 
 #[test]
 fn test_parse_empty_list_literal() {
-    let module = spin! {
-        let xs = []
-    };
+    let module = parse("let xs = #[]").unwrap();
     match &module.items[0] {
         Item::LetBinding(l) => match &l.value {
             Expr::ListLit(items) => {
@@ -1258,9 +1256,7 @@ fn test_parse_empty_list_literal() {
 
 #[test]
 fn test_parse_list_literal_with_strings() {
-    let module = spin! {
-        let xs = ["a", "b"]
-    };
+    let module = parse(r#"let xs = #["a", "b"]"#).unwrap();
     match &module.items[0] {
         Item::LetBinding(l) => match &l.value {
             Expr::ListLit(items) => {

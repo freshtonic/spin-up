@@ -57,8 +57,10 @@ pub enum Token {
     Number(String),
     StringLit(String),
 
-    // Attribute syntax
+    // Hash-prefixed delimiters
     HashBracket, // #[
+    HashBrace,   // #{
+    HashParen,   // #(
 
     // Punctuation
     LBrace,
@@ -500,14 +502,33 @@ pub fn lex(input: &str) -> Result<Vec<Spanned>, LexError> {
                     span: pos..pos + 1,
                 });
             }
-            '#' if matches!(chars.clone().nth(1), Some((_, '['))) => {
-                chars.next();
-                chars.next();
-                tokens.push(Spanned {
-                    kind: Token::HashBracket,
-                    span: pos..pos + 2,
-                });
-            }
+            '#' => match chars.clone().nth(1) {
+                Some((_, '[')) => {
+                    chars.next();
+                    chars.next();
+                    tokens.push(Spanned {
+                        kind: Token::HashBracket,
+                        span: pos..pos + 2,
+                    });
+                }
+                Some((_, '{')) => {
+                    chars.next();
+                    chars.next();
+                    tokens.push(Spanned {
+                        kind: Token::HashBrace,
+                        span: pos..pos + 2,
+                    });
+                }
+                Some((_, '(')) => {
+                    chars.next();
+                    chars.next();
+                    tokens.push(Spanned {
+                        kind: Token::HashParen,
+                        span: pos..pos + 2,
+                    });
+                }
+                _ => return Err(LexError::UnexpectedChar { ch, pos }),
+            },
             _ => return Err(LexError::UnexpectedChar { ch, pos }),
         }
     }

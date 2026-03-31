@@ -142,6 +142,11 @@ fn collect_ident_refs(expr: &Expr, known: &HashSet<String>, out: &mut HashSet<St
                 collect_ident_refs(item, known, out);
             }
         }
+        Expr::SetLit(items) => {
+            for item in items {
+                collect_ident_refs(item, known, out);
+            }
+        }
         Expr::HashMapLit(pairs) => {
             for (k, v) in pairs {
                 collect_ident_refs(k, known, out);

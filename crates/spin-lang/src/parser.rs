@@ -458,7 +458,13 @@ impl Parser {
 
     fn parse_comparison(&mut self) -> Result<Expr, ParseError> {
         let mut left = self.parse_unary()?;
-        while let Some(op) = self.peek_binary_op(&[Token::Lt, Token::Gt, Token::Lte, Token::Gte]) {
+        while let Some(op) = self.peek_binary_op(&[
+            Token::Lt,
+            Token::Gt,
+            Token::Lte,
+            Token::Gte,
+            Token::RegexMatch,
+        ]) {
             self.advance();
             let right = self.parse_unary()?;
             left = Expr::BinaryOp {
@@ -481,6 +487,7 @@ impl Parser {
                     Token::Gt => Some(BinaryOp::Gt),
                     Token::Lte => Some(BinaryOp::Lte),
                     Token::Gte => Some(BinaryOp::Gte),
+                    Token::RegexMatch => Some(BinaryOp::RegexMatch),
                     _ => None,
                 };
             }
@@ -565,14 +572,35 @@ impl Parser {
                     unreachable!()
                 }
             }
+            // #[ list literal
             Some(Spanned {
-                kind: Token::LBracket,
+                kind: Token::HashBracket,
                 ..
             }) => {
-                self.advance(); // consume '['
+                self.advance(); // consume '#['
                 let items = self.parse_expr_list(Token::RBracket)?;
                 self.expect_token(Token::RBracket)?;
                 Expr::ListLit(items)
+            }
+            // #( set literal
+            Some(Spanned {
+                kind: Token::HashParen,
+                ..
+            }) => {
+                self.advance(); // consume '#('
+                let items = self.parse_expr_list(Token::RParen)?;
+                self.expect_token(Token::RParen)?;
+                Expr::SetLit(items)
+            }
+            // #{ hashmap literal
+            Some(Spanned {
+                kind: Token::HashBrace,
+                ..
+            }) => {
+                self.advance(); // consume '#{'
+                let entries = self.parse_hashmap_entries()?;
+                self.expect_token(Token::RBrace)?;
+                Expr::HashMapLit(entries)
             }
             // Contextual keywords used as identifiers in expression position
             Some(Spanned { kind, .. }) if token_as_contextual_ident(kind).is_some() => {
@@ -816,6 +844,20 @@ impl Parser {
             }
         }
         Ok(exprs)
+    }
+
+    fn parse_hashmap_entries(&mut self) -> Result<Vec<(Expr, Expr)>, ParseError> {
+        let mut entries = Vec::new();
+        while !self.check(&Token::RBrace) {
+            let key = self.parse_expr()?;
+            self.expect_token(Token::Colon)?;
+            let value = self.parse_expr()?;
+            entries.push((key, value));
+            if self.check(&Token::Comma) {
+                self.advance();
+            }
+        }
+        Ok(entries)
     }
 
     fn parse_field_access_chain(&mut self, mut expr: Expr) -> Result<Expr, ParseError> {
@@ -1112,6 +1154,8 @@ fn token_to_string(token: &Token) -> String {
         Token::Slash => "/".to_string(),
         Token::Type => "type".to_string(),
         Token::HashBracket => "#[".to_string(),
+        Token::HashBrace => "#{".to_string(),
+        Token::HashParen => "#(".to_string(),
         Token::LBrace => "{".to_string(),
         Token::RBrace => "}".to_string(),
         Token::LParen => "(".to_string(),
@@ -1148,6 +1192,295 @@ pub fn parse(input: &str) -> Result<Module, ParseError> {
 mod tests {
     use super::*;
     use crate::ast::{BinaryOp, Expr, Item};
+
+    // --- Collection literal syntax: #[...], #(...), #{...} ---
+
+    #[test]
+    fn test_parse_list_literal_new_syntax() {
+        let source = "let xs = #[1, 2, 3]";
+        let module = parse(source).unwrap();
+        match &module.items[0] {
+            Item::LetBinding(l) => match &l.value {
+                Expr::ListLit(items) => assert_eq!(items.len(), 3),
+                other => panic!("expected ListLit, got {other:?}"),
+            },
+            other => panic!("expected LetBinding, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_empty_list_literal_new_syntax() {
+        let source = "let xs = #[]";
+        let module = parse(source).unwrap();
+        match &module.items[0] {
+            Item::LetBinding(l) => match &l.value {
+                Expr::ListLit(items) => assert!(items.is_empty()),
+                other => panic!("expected ListLit, got {other:?}"),
+            },
+            other => panic!("expected LetBinding, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_set_literal() {
+        let source = r#"let xs = #("a", "b", "c")"#;
+        let module = parse(source).unwrap();
+        match &module.items[0] {
+            Item::LetBinding(l) => match &l.value {
+                Expr::SetLit(items) => assert_eq!(items.len(), 3),
+                other => panic!("expected SetLit, got {other:?}"),
+            },
+            other => panic!("expected LetBinding, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_empty_set_literal() {
+        let source = "let xs = #()";
+        let module = parse(source).unwrap();
+        match &module.items[0] {
+            Item::LetBinding(l) => match &l.value {
+                Expr::SetLit(items) => assert!(items.is_empty()),
+                other => panic!("expected SetLit, got {other:?}"),
+            },
+            other => panic!("expected LetBinding, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_hashmap_literal() {
+        let source = r#"let m = #{"key": "value", "other": "thing"}"#;
+        let module = parse(source).unwrap();
+        match &module.items[0] {
+            Item::LetBinding(l) => match &l.value {
+                Expr::HashMapLit(entries) => assert_eq!(entries.len(), 2),
+                other => panic!("expected HashMapLit, got {other:?}"),
+            },
+            other => panic!("expected LetBinding, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_empty_hashmap_literal() {
+        let source = "let m = #{}";
+        let module = parse(source).unwrap();
+        match &module.items[0] {
+            Item::LetBinding(l) => match &l.value {
+                Expr::HashMapLit(entries) => assert!(entries.is_empty()),
+                other => panic!("expected HashMapLit, got {other:?}"),
+            },
+            other => panic!("expected LetBinding, got {other:?}"),
+        }
+    }
+
+    // --- Built-in function calls ---
+
+    #[test]
+    fn test_parse_builtin_map_call() {
+        let source = "let ys = map(xs, Proxy { host: it })";
+        let module = parse(source).unwrap();
+        match &module.items[0] {
+            Item::LetBinding(l) => match &l.value {
+                Expr::Call { name, args } => {
+                    assert_eq!(name, "map");
+                    assert_eq!(args.len(), 2);
+                }
+                other => panic!("expected Call, got {other:?}"),
+            },
+            other => panic!("expected LetBinding, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_builtin_keep_with_regex() {
+        let source = r#"let filtered = keep(hosts, it =~ r"\.zone1$")"#;
+        let module = parse(source).unwrap();
+        match &module.items[0] {
+            Item::LetBinding(l) => match &l.value {
+                Expr::Call { name, args } => {
+                    assert_eq!(name, "keep");
+                    assert_eq!(args.len(), 2);
+                    match &args[1] {
+                        Expr::BinaryOp { op, .. } => {
+                            assert_eq!(*op, BinaryOp::RegexMatch);
+                        }
+                        other => panic!("expected BinaryOp, got {other:?}"),
+                    }
+                }
+                other => panic!("expected Call, got {other:?}"),
+            },
+            other => panic!("expected LetBinding, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_builtin_count() {
+        let source = "let n = count(xs)";
+        let module = parse(source).unwrap();
+        match &module.items[0] {
+            Item::LetBinding(l) => match &l.value {
+                Expr::Call { name, args } => {
+                    assert_eq!(name, "count");
+                    assert_eq!(args.len(), 1);
+                }
+                other => panic!("expected Call, got {other:?}"),
+            },
+            other => panic!("expected LetBinding, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_builtin_sum() {
+        let source = "let total = sum(numbers)";
+        let module = parse(source).unwrap();
+        match &module.items[0] {
+            Item::LetBinding(l) => match &l.value {
+                Expr::Call { name, args } => {
+                    assert_eq!(name, "sum");
+                    assert_eq!(args.len(), 1);
+                }
+                other => panic!("expected Call, got {other:?}"),
+            },
+            other => panic!("expected LetBinding, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_builtin_min() {
+        let source = "let smallest = min(numbers)";
+        let module = parse(source).unwrap();
+        match &module.items[0] {
+            Item::LetBinding(l) => match &l.value {
+                Expr::Call { name, args } => {
+                    assert_eq!(name, "min");
+                    assert_eq!(args.len(), 1);
+                }
+                other => panic!("expected Call, got {other:?}"),
+            },
+            other => panic!("expected LetBinding, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_builtin_max() {
+        let source = "let biggest = max(numbers)";
+        let module = parse(source).unwrap();
+        match &module.items[0] {
+            Item::LetBinding(l) => match &l.value {
+                Expr::Call { name, args } => {
+                    assert_eq!(name, "max");
+                    assert_eq!(args.len(), 1);
+                }
+                other => panic!("expected Call, got {other:?}"),
+            },
+            other => panic!("expected LetBinding, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_builtin_mean() {
+        let source = "let avg = mean(numbers)";
+        let module = parse(source).unwrap();
+        match &module.items[0] {
+            Item::LetBinding(l) => match &l.value {
+                Expr::Call { name, args } => {
+                    assert_eq!(name, "mean");
+                    assert_eq!(args.len(), 1);
+                }
+                other => panic!("expected Call, got {other:?}"),
+            },
+            other => panic!("expected LetBinding, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_builtin_median() {
+        let source = "let mid = median(numbers)";
+        let module = parse(source).unwrap();
+        match &module.items[0] {
+            Item::LetBinding(l) => match &l.value {
+                Expr::Call { name, args } => {
+                    assert_eq!(name, "median");
+                    assert_eq!(args.len(), 1);
+                }
+                other => panic!("expected Call, got {other:?}"),
+            },
+            other => panic!("expected LetBinding, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_builtin_drop() {
+        let source = "let rest = drop(xs, 2)";
+        let module = parse(source).unwrap();
+        match &module.items[0] {
+            Item::LetBinding(l) => match &l.value {
+                Expr::Call { name, args } => {
+                    assert_eq!(name, "drop");
+                    assert_eq!(args.len(), 2);
+                }
+                other => panic!("expected Call, got {other:?}"),
+            },
+            other => panic!("expected LetBinding, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_builtin_filter() {
+        let source = "let evens = filter(xs, it > 0)";
+        let module = parse(source).unwrap();
+        match &module.items[0] {
+            Item::LetBinding(l) => match &l.value {
+                Expr::Call { name, args } => {
+                    assert_eq!(name, "filter");
+                    assert_eq!(args.len(), 2);
+                }
+                other => panic!("expected Call, got {other:?}"),
+            },
+            other => panic!("expected LetBinding, got {other:?}"),
+        }
+    }
+
+    // --- Regex match operator =~ ---
+
+    #[test]
+    fn test_parse_regex_match_expression() {
+        let source = r#"let matches = it =~ r"pattern""#;
+        let module = parse(source).unwrap();
+        match &module.items[0] {
+            Item::LetBinding(l) => match &l.value {
+                Expr::BinaryOp { op, .. } => {
+                    assert_eq!(*op, BinaryOp::RegexMatch);
+                }
+                other => panic!("expected BinaryOp, got {other:?}"),
+            },
+            other => panic!("expected LetBinding, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_regex_match_in_comparison_chain() {
+        let source = r#"let x = it =~ r"foo" && it =~ r"bar""#;
+        let module = parse(source).unwrap();
+        match &module.items[0] {
+            Item::LetBinding(l) => match &l.value {
+                Expr::BinaryOp {
+                    op: BinaryOp::And, ..
+                } => {}
+                other => panic!("expected And BinaryOp, got {other:?}"),
+            },
+            other => panic!("expected LetBinding, got {other:?}"),
+        }
+    }
+
+    // --- Old [1, 2, 3] list literal syntax should no longer work in expression context ---
+
+    #[test]
+    fn test_old_bracket_list_literal_no_longer_parses_as_expression() {
+        // Plain [1, 2, 3] should fail in expression context (now need #[1, 2, 3])
+        let source = "let xs = [1, 2, 3]";
+        assert!(parse(source).is_err());
+    }
 
     #[test]
     fn test_parse_let_string_literal() {
