@@ -52,7 +52,7 @@ fn no_redefinition_passes() {
 
 #[test]
 fn redefinition_inferred_type_mismatch() {
-    // Use string vs bool since numeric literals infer to Unknown
+    // String vs bool is a type mismatch
     let module = spin! {
         let x = "hello"
         let x = true
@@ -65,9 +65,8 @@ fn redefinition_inferred_type_mismatch() {
 }
 
 #[test]
-fn redefinition_numeric_unknown_is_lenient() {
-    // Numeric literals infer to Unknown, so redefinition is allowed
-    // since we cannot determine the type mismatch
+fn redefinition_numeric_to_string_is_error() {
+    // Numeric literals infer to Number, so redefinition to string is a type mismatch
     let module = spin! {
         let x = 42
         let x = "hello"
@@ -76,11 +75,7 @@ fn redefinition_numeric_unknown_is_lenient() {
     registry.register_module("test", &module);
 
     let diags = check_let_redefinitions(&registry);
-    assert!(
-        diags.is_ok(),
-        "Unknown numeric type should be lenient: {:?}",
-        diags.errors()
-    );
+    assert!(!diags.is_ok(), "number to string redefinition should be an error");
 }
 
 #[test]

@@ -76,7 +76,7 @@ pub fn infer_expr_type(expr: &Expr, impl_type_name: &str, registry: &TypeRegistr
 
         Expr::BoolLit(_) => TypeInfo::Primitive(PrimitiveType::Bool),
 
-        Expr::Number(_) => TypeInfo::Unknown, // numeric type inference is deferred
+        Expr::Number(_) => TypeInfo::Primitive(PrimitiveType::Number),
 
         Expr::None_ => TypeInfo::Generic {
             name: "Option".to_string(),
