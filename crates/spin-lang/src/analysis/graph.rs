@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use crate::ast::Expr;
+use crate::ast::{Expr, SpannedExpr};
 use crate::diagnostics::{DiagnosticKind, Diagnostics};
 
 use super::registry::TypeRegistry;
@@ -76,8 +76,8 @@ pub fn build_dependency_graph(registry: &TypeRegistry) -> DependencyGraph {
 
 /// Recursively walk an expression tree and collect every `Expr::Ident`
 /// whose name matches a known binding.
-fn collect_ident_refs(expr: &Expr, known: &HashSet<String>, out: &mut HashSet<String>) {
-    match expr {
+fn collect_ident_refs(expr: &SpannedExpr, known: &HashSet<String>, out: &mut HashSet<String>) {
+    match &expr.kind {
         Expr::Ident(name) => {
             if known.contains(name) {
                 out.insert(name.clone());

@@ -1,5 +1,5 @@
 use crate::analysis::registry::TypeRegistry;
-use crate::ast::{BinaryOp, Expr, FieldInit};
+use crate::ast::{BinaryOp, Expr, FieldInit, SpannedExpr};
 use crate::diagnostics::{DiagnosticKind, Diagnostics};
 
 /// Check constraint expressions in all let bindings.
@@ -24,8 +24,8 @@ pub fn check_constraints(registry: &TypeRegistry) -> Diagnostics {
 /// Only field inits inside `NamedConstruction` are valid constraint contexts.
 /// Any `It` usage elsewhere would be flagged, but for now we only walk
 /// into named constructions.
-fn check_expr_for_constraints(expr: &Expr, source_name: &str, diags: &mut Diagnostics) {
-    match expr {
+fn check_expr_for_constraints(expr: &SpannedExpr, source_name: &str, diags: &mut Diagnostics) {
+    match &expr.kind {
         Expr::NamedConstruction { fields, .. } => {
             for field in fields {
                 if contains_it(&field.value) {
@@ -47,8 +47,8 @@ fn check_expr_for_constraints(expr: &Expr, source_name: &str, diags: &mut Diagno
 }
 
 /// Returns true if the expression tree contains an `Expr::It`.
-fn contains_it(expr: &Expr) -> bool {
-    match expr {
+fn contains_it(expr: &SpannedExpr) -> bool {
+    match &expr.kind {
         Expr::It => true,
         Expr::BinaryOp { left, right, .. } => contains_it(left) || contains_it(right),
         Expr::UnaryOp { operand, .. } => contains_it(operand),
@@ -63,12 +63,12 @@ fn contains_it(expr: &Expr) -> bool {
 ///   and the other is a numeric literal
 /// - A logical combination (`&&`, `||`) of valid constraint expressions
 fn validate_constraint_expr(
-    expr: &Expr,
+    expr: &SpannedExpr,
     field: &FieldInit,
     source_name: &str,
     diags: &mut Diagnostics,
 ) {
-    match expr {
+    match &expr.kind {
         Expr::BinaryOp { left, op, right } => match op {
             BinaryOp::And | BinaryOp::Or => {
                 // Both sides must be valid constraint expressions
@@ -101,8 +101,8 @@ fn validate_constraint_expr(
 /// Validate that a comparison has `it` on one side and a compatible literal
 /// on the other.
 fn validate_comparison_operands(
-    left: &Expr,
-    right: &Expr,
+    left: &SpannedExpr,
+    right: &SpannedExpr,
     field: &FieldInit,
     source_name: &str,
     diags: &mut Diagnostics,
@@ -137,13 +137,13 @@ fn validate_comparison_operands(
 }
 
 /// Returns true if the expression is `Expr::It`.
-fn is_it(expr: &Expr) -> bool {
-    matches!(expr, Expr::It)
+fn is_it(expr: &SpannedExpr) -> bool {
+    matches!(&expr.kind, Expr::It)
 }
 
 /// Returns true if the expression is a numeric literal.
-fn is_numeric_literal(expr: &Expr) -> bool {
-    matches!(expr, Expr::Number(_))
+fn is_numeric_literal(expr: &SpannedExpr) -> bool {
+    matches!(&expr.kind, Expr::Number(_))
 }
 
 // --- Constraint satisfiability checking ---
@@ -174,8 +174,8 @@ fn parse_numeric(s: &str) -> Option<ConstValue> {
 }
 
 /// Extract a constant value from an expression.
-fn eval_constant(expr: &Expr) -> Option<ConstValue> {
-    match expr {
+fn eval_constant(expr: &SpannedExpr) -> Option<ConstValue> {
+    match &expr.kind {
         Expr::Number(s) => parse_numeric(s),
         _ => None,
     }
@@ -198,7 +198,7 @@ struct BoundSet {
 /// Collect all bounds from an `&&`-chained constraint expression.
 /// Returns `None` if the expression contains `||` (we handle disjunctions separately)
 /// or if it contains non-constant operands.
-fn collect_bounds(expr: &Expr) -> Option<BoundSet> {
+fn collect_bounds(expr: &SpannedExpr) -> Option<BoundSet> {
     let mut bounds = BoundSet::default();
     if collect_bounds_inner(expr, &mut bounds) {
         Some(bounds)
@@ -209,8 +209,8 @@ fn collect_bounds(expr: &Expr) -> Option<BoundSet> {
 
 /// Recursively collect bounds. Returns false if the expression cannot be analyzed
 /// (e.g., contains `||` or non-constant operands).
-fn collect_bounds_inner(expr: &Expr, bounds: &mut BoundSet) -> bool {
-    match expr {
+fn collect_bounds_inner(expr: &SpannedExpr, bounds: &mut BoundSet) -> bool {
+    match &expr.kind {
         Expr::BinaryOp { left, op, right } => match op {
             BinaryOp::And => {
                 collect_bounds_inner(left, bounds) && collect_bounds_inner(right, bounds)
@@ -451,14 +451,14 @@ fn format_const_value(v: &ConstValue) -> String {
 /// Check whether a constraint expression is satisfiable and emit a
 /// `ConstraintViolation` if it is not.
 fn check_constraint_satisfiability(
-    expr: &Expr,
+    expr: &SpannedExpr,
     field: &FieldInit,
     source_name: &str,
     diags: &mut Diagnostics,
 ) {
     // For `||` (disjunction) at the top level, at least one branch must be satisfiable.
     // For `&&` (conjunction), we collect all bounds and check satisfiability.
-    match expr {
+    match &expr.kind {
         Expr::BinaryOp {
             left,
             op: BinaryOp::Or,
@@ -503,7 +503,7 @@ fn check_constraint_satisfiability(
 
 /// Check if an expression branch is satisfiable. Returns true if satisfiable
 /// or if we cannot determine satisfiability (giving the benefit of the doubt).
-fn is_branch_satisfiable(expr: &Expr) -> bool {
+fn is_branch_satisfiable(expr: &SpannedExpr) -> bool {
     match collect_bounds(expr) {
         Some(bounds) => check_satisfiability(&bounds).is_none(),
         None => true, // Cannot analyze → assume satisfiable

@@ -1,5 +1,25 @@
 use std::ops::Range;
 
+/// A wrapper that pairs an AST node with its source span.
+#[derive(Debug, Clone)]
+pub struct Spanned<T> {
+    pub kind: T,
+    pub span: Range<usize>,
+}
+
+/// Type alias for a spanned expression.
+pub type SpannedExpr = Spanned<Expr>;
+
+/// Type alias for a spanned type expression.
+pub type SpannedTypeExpr = Spanned<TypeExpr>;
+
+impl<T> Spanned<T> {
+    /// Create a new spanned node.
+    pub fn new(kind: T, span: Range<usize>) -> Self {
+        Self { kind, span }
+    }
+}
+
 /// A complete .spin module
 #[derive(Debug, Clone)]
 pub struct Module {
@@ -56,7 +76,7 @@ pub struct ChoiceDef {
 #[derive(Debug, Clone)]
 pub struct Variant {
     pub name: String,
-    pub fields: Vec<TypeExpr>,
+    pub fields: Vec<SpannedTypeExpr>,
     pub span: Range<usize>,
 }
 
@@ -64,7 +84,7 @@ pub struct Variant {
 #[derive(Debug, Clone)]
 pub struct Field {
     pub name: String,
-    pub ty: TypeExpr,
+    pub ty: SpannedTypeExpr,
     pub attributes: Vec<Attribute>,
     pub span: Range<usize>,
 }
@@ -79,15 +99,18 @@ pub enum TypeExpr {
     /// A qualified path, e.g. `spin-core::TcpPort`
     Path { module: String, name: String },
     /// A generic type, e.g. `Option<number>`
-    Generic { name: String, args: Vec<TypeExpr> },
+    Generic {
+        name: String,
+        args: Vec<SpannedTypeExpr>,
+    },
     /// Self-qualified type, e.g. `Self::Tls`
     SelfPath(String),
     /// List type: `[T]`
-    List(Box<TypeExpr>),
+    List(Box<SpannedTypeExpr>),
     /// HashMap type: `{K: V}`
     HashMap {
-        key: Box<TypeExpr>,
-        value: Box<TypeExpr>,
+        key: Box<SpannedTypeExpr>,
+        value: Box<SpannedTypeExpr>,
     },
 }
 
@@ -97,7 +120,7 @@ pub enum StringPart {
     /// Literal text segment
     Literal(String),
     /// Interpolated expression: `${expr}`
-    Expr(Expr),
+    Expr(SpannedExpr),
 }
 
 /// An expression
@@ -114,7 +137,10 @@ pub enum Expr {
     /// Identifier reference: `proxy`, `my_var`
     Ident(String),
     /// Field access: `self.port`, `self.endpoint.user`
-    FieldAccess { object: Box<Expr>, field: String },
+    FieldAccess {
+        object: Box<SpannedExpr>,
+        field: String,
+    },
     /// Type construction: `Proxy { field: value, ... }`
     TypeConstruction {
         type_name: String,
@@ -125,7 +151,7 @@ pub enum Expr {
     VariantConstruction {
         type_name: String,
         variant: String,
-        args: Vec<Expr>,
+        args: Vec<SpannedExpr>,
     },
     /// Function/variant call with named args: `SemVer(major: 17)`
     NamedConstruction {
@@ -133,15 +159,21 @@ pub enum Expr {
         fields: Vec<FieldInit>,
     },
     /// Function call with positional args: `Some(42)`, `my_func(a, b)`
-    Call { name: String, args: Vec<Expr> },
+    Call {
+        name: String,
+        args: Vec<SpannedExpr>,
+    },
     /// Binary operation: `it >= 15`, `it < 17`, `a && b`
     BinaryOp {
-        left: Box<Expr>,
+        left: Box<SpannedExpr>,
         op: BinaryOp,
-        right: Box<Expr>,
+        right: Box<SpannedExpr>,
     },
     /// Unary operation: `!x`
-    UnaryOp { op: UnaryOp, operand: Box<Expr> },
+    UnaryOp {
+        op: UnaryOp,
+        operand: Box<SpannedExpr>,
+    },
     /// The `it` keyword (value being constrained)
     It,
     /// The `self` keyword
@@ -151,18 +183,18 @@ pub enum Expr {
     /// Regex literal: `r"pattern"`
     RegexLit(String),
     /// List literal: `#[1, 2, 3]`
-    ListLit(Vec<Expr>),
+    ListLit(Vec<SpannedExpr>),
     /// Set literal: `#("a", "b", "c")`
-    SetLit(Vec<Expr>),
+    SetLit(Vec<SpannedExpr>),
     /// HashMap literal: `#{"key": "value", ...}`
-    HashMapLit(Vec<(Expr, Expr)>),
+    HashMapLit(Vec<(SpannedExpr, SpannedExpr)>),
 }
 
 /// A field initializer: `name: expr`
 #[derive(Debug, Clone)]
 pub struct FieldInit {
     pub name: String,
-    pub value: Expr,
+    pub value: SpannedExpr,
     pub span: Range<usize>,
 }
 
@@ -225,7 +257,7 @@ pub struct InterfaceDef {
 #[derive(Debug, Clone)]
 pub struct InterfaceField {
     pub name: String,
-    pub ty: TypeExpr,
+    pub ty: SpannedTypeExpr,
     pub attributes: Vec<Attribute>,
     pub span: Range<usize>,
 }
@@ -243,7 +275,7 @@ pub struct ImplBlock {
 #[derive(Debug, Clone)]
 pub struct FieldMapping {
     pub name: String,
-    pub value: Expr,
+    pub value: SpannedExpr,
     pub span: Range<usize>,
 }
 
@@ -251,8 +283,8 @@ pub struct FieldMapping {
 #[derive(Debug, Clone)]
 pub struct LetBinding {
     pub name: String,
-    pub ty: Option<TypeExpr>,
-    pub value: Expr,
+    pub ty: Option<SpannedTypeExpr>,
+    pub value: SpannedExpr,
     pub span: Range<usize>,
 }
 

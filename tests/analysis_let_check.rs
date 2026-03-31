@@ -75,7 +75,10 @@ fn redefinition_numeric_to_string_is_error() {
     registry.register_module("test", &module);
 
     let diags = check_let_redefinitions(&registry);
-    assert!(!diags.is_ok(), "number to string redefinition should be an error");
+    assert!(
+        !diags.is_ok(),
+        "number to string redefinition should be an error"
+    );
 }
 
 #[test]

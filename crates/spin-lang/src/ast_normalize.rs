@@ -106,14 +106,18 @@ fn normalize_attribute(attr: &ast::Attribute) -> NormalizedAttribute {
 fn normalize_field(field: &ast::Field) -> NormalizedField {
     NormalizedField {
         name: field.name.clone(),
-        ty: normalize_type_expr(&field.ty),
+        ty: normalize_type_expr(&field.ty.kind),
     }
 }
 
 fn normalize_variant(variant: &ast::Variant) -> NormalizedVariant {
     NormalizedVariant {
         name: variant.name.clone(),
-        fields: variant.fields.iter().map(normalize_type_expr).collect(),
+        fields: variant
+            .fields
+            .iter()
+            .map(|f| normalize_type_expr(&f.kind))
+            .collect(),
     }
 }
 
@@ -127,15 +131,15 @@ fn normalize_type_expr(ty: &ast::TypeExpr) -> NormalizedTypeExpr {
         },
         ast::TypeExpr::Generic { name, args } => NormalizedTypeExpr::Generic {
             name: name.clone(),
-            args: args.iter().map(normalize_type_expr).collect(),
+            args: args.iter().map(|a| normalize_type_expr(&a.kind)).collect(),
         },
         ast::TypeExpr::SelfPath(name) => NormalizedTypeExpr::SelfPath(name.clone()),
         ast::TypeExpr::List(element) => {
-            NormalizedTypeExpr::List(Box::new(normalize_type_expr(element)))
+            NormalizedTypeExpr::List(Box::new(normalize_type_expr(&element.kind)))
         }
         ast::TypeExpr::HashMap { key, value } => NormalizedTypeExpr::HashMap {
-            key: Box::new(normalize_type_expr(key)),
-            value: Box::new(normalize_type_expr(value)),
+            key: Box::new(normalize_type_expr(&key.kind)),
+            value: Box::new(normalize_type_expr(&value.kind)),
         },
     }
 }

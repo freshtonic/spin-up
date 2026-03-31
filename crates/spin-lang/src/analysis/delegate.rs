@@ -134,7 +134,7 @@ fn field_type_satisfies_interface(
     field: &Field,
     interface_name: &str,
 ) -> bool {
-    let type_name = match &field.ty {
+    let type_name = match &field.ty.kind {
         TypeExpr::Named(name) => name.as_str(),
         TypeExpr::Path { name, .. } => name.as_str(),
         _ => return false,

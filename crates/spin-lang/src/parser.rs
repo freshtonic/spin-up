@@ -1,6 +1,6 @@
 use crate::ast::{
     AsInterfaceBlock, Attribute, BinaryOp, Expr, FieldInit, Import, Item, LetBinding, Module,
-    StringPart, UnaryOp, Variant,
+    SpannedExpr, SpannedTypeExpr, StringPart, UnaryOp, Variant,
 };
 use crate::lexer::{self, Spanned, Token};
 use thiserror::Error;
@@ -329,7 +329,7 @@ impl Parser {
 
             let (field_name, field_name_span) = self.expect_ident()?;
             self.expect_token(Token::Colon)?;
-            let ty = self.parse_type_expr()?;
+            let ty = self.parse_spanned_type_expr()?;
             let end = self.previous_span_end();
 
             fields.push(crate::ast::InterfaceField {
@@ -365,7 +365,7 @@ impl Parser {
         while !self.check(&Token::RBrace) {
             let (name, name_span) = self.expect_ident()?;
             self.expect_token(Token::Colon)?;
-            let value = self.parse_expr()?;
+            let value = self.parse_spanned_expr()?;
             let end = self.previous_span_end();
             mappings.push(crate::ast::FieldMapping {
                 name,
@@ -393,13 +393,13 @@ impl Parser {
 
         let ty = if self.check(&Token::Colon) {
             self.advance(); // consume ':'
-            Some(self.parse_type_expr()?)
+            Some(self.parse_spanned_type_expr()?)
         } else {
             None
         };
 
         self.expect_token(Token::Eq)?;
-        let value = self.parse_expr()?;
+        let value = self.parse_spanned_expr()?;
         let end = self.previous_span_end();
 
         Ok(Item::LetBinding(LetBinding {
@@ -410,53 +410,65 @@ impl Parser {
         }))
     }
 
-    fn parse_expr(&mut self) -> Result<Expr, ParseError> {
+    fn parse_spanned_expr(&mut self) -> Result<SpannedExpr, ParseError> {
         self.parse_or()
     }
 
-    fn parse_or(&mut self) -> Result<Expr, ParseError> {
+    fn parse_or(&mut self) -> Result<SpannedExpr, ParseError> {
         let mut left = self.parse_and()?;
         while self.check(&Token::Or) {
             self.advance();
             let right = self.parse_and()?;
-            left = Expr::BinaryOp {
-                left: Box::new(left),
-                op: BinaryOp::Or,
-                right: Box::new(right),
+            let span = left.span.start..right.span.end;
+            left = SpannedExpr {
+                kind: Expr::BinaryOp {
+                    left: Box::new(left),
+                    op: BinaryOp::Or,
+                    right: Box::new(right),
+                },
+                span,
             };
         }
         Ok(left)
     }
 
-    fn parse_and(&mut self) -> Result<Expr, ParseError> {
+    fn parse_and(&mut self) -> Result<SpannedExpr, ParseError> {
         let mut left = self.parse_equality()?;
         while self.check(&Token::And) {
             self.advance();
             let right = self.parse_equality()?;
-            left = Expr::BinaryOp {
-                left: Box::new(left),
-                op: BinaryOp::And,
-                right: Box::new(right),
+            let span = left.span.start..right.span.end;
+            left = SpannedExpr {
+                kind: Expr::BinaryOp {
+                    left: Box::new(left),
+                    op: BinaryOp::And,
+                    right: Box::new(right),
+                },
+                span,
             };
         }
         Ok(left)
     }
 
-    fn parse_equality(&mut self) -> Result<Expr, ParseError> {
+    fn parse_equality(&mut self) -> Result<SpannedExpr, ParseError> {
         let mut left = self.parse_comparison()?;
         while let Some(op) = self.peek_binary_op(&[Token::EqEq, Token::BangEq]) {
             self.advance();
             let right = self.parse_comparison()?;
-            left = Expr::BinaryOp {
-                left: Box::new(left),
-                op,
-                right: Box::new(right),
+            let span = left.span.start..right.span.end;
+            left = SpannedExpr {
+                kind: Expr::BinaryOp {
+                    left: Box::new(left),
+                    op,
+                    right: Box::new(right),
+                },
+                span,
             };
         }
         Ok(left)
     }
 
-    fn parse_comparison(&mut self) -> Result<Expr, ParseError> {
+    fn parse_comparison(&mut self) -> Result<SpannedExpr, ParseError> {
         let mut left = self.parse_unary()?;
         while let Some(op) = self.peek_binary_op(&[
             Token::Lt,
@@ -467,10 +479,14 @@ impl Parser {
         ]) {
             self.advance();
             let right = self.parse_unary()?;
-            left = Expr::BinaryOp {
-                left: Box::new(left),
-                op,
-                right: Box::new(right),
+            let span = left.span.start..right.span.end;
+            left = SpannedExpr {
+                kind: Expr::BinaryOp {
+                    left: Box::new(left),
+                    op,
+                    right: Box::new(right),
+                },
+                span,
             };
         }
         Ok(left)
@@ -495,26 +511,31 @@ impl Parser {
         None
     }
 
-    fn parse_unary(&mut self) -> Result<Expr, ParseError> {
+    fn parse_unary(&mut self) -> Result<SpannedExpr, ParseError> {
         if self.check(&Token::Bang) {
-            self.advance();
+            let start = self.advance().unwrap().span.start;
             let operand = self.parse_unary()?;
-            return Ok(Expr::UnaryOp {
-                op: UnaryOp::Not,
-                operand: Box::new(operand),
+            let end = operand.span.end;
+            return Ok(SpannedExpr {
+                kind: Expr::UnaryOp {
+                    op: UnaryOp::Not,
+                    operand: Box::new(operand),
+                },
+                span: start..end,
             });
         }
         self.parse_primary()
     }
 
-    fn parse_primary(&mut self) -> Result<Expr, ParseError> {
+    fn parse_primary(&mut self) -> Result<SpannedExpr, ParseError> {
+        let start = self.current_span_start();
         let expr = match self.peek() {
             Some(Spanned {
                 kind: Token::StringLit(_),
                 ..
             }) => {
                 if let Token::StringLit(s) = &self.advance().unwrap().kind {
-                    parse_string_literal(s)
+                    parse_string_literal(s, start)
                 } else {
                     unreachable!()
                 }
@@ -559,7 +580,10 @@ impl Parser {
                         self.advance();
                         Expr::None_
                     }
-                    _ => self.parse_ident_expr()?,
+                    _ => {
+                        let spanned = self.parse_ident_expr()?;
+                        return self.parse_field_access_chain(spanned);
+                    }
                 }
             }
             Some(Spanned {
@@ -578,7 +602,7 @@ impl Parser {
                 ..
             }) => {
                 self.advance(); // consume '#['
-                let items = self.parse_expr_list(Token::RBracket)?;
+                let items = self.parse_spanned_expr_list(Token::RBracket)?;
                 self.expect_token(Token::RBracket)?;
                 Expr::ListLit(items)
             }
@@ -588,7 +612,7 @@ impl Parser {
                 ..
             }) => {
                 self.advance(); // consume '#('
-                let items = self.parse_expr_list(Token::RParen)?;
+                let items = self.parse_spanned_expr_list(Token::RParen)?;
                 self.expect_token(Token::RParen)?;
                 Expr::SetLit(items)
             }
@@ -604,7 +628,8 @@ impl Parser {
             }
             // Contextual keywords used as identifiers in expression position
             Some(Spanned { kind, .. }) if token_as_contextual_ident(kind).is_some() => {
-                self.parse_ident_expr()?
+                let spanned = self.parse_ident_expr()?;
+                return self.parse_field_access_chain(spanned);
             }
             Some(Spanned { kind, span }) => {
                 let pos = span.start;
@@ -622,25 +647,30 @@ impl Parser {
             }
         };
 
+        let spanned = self.spanned_expr(expr, start);
         // Chain field access with `.`
-        self.parse_field_access_chain(expr)
+        self.parse_field_access_chain(spanned)
     }
 
-    fn parse_ident_expr(&mut self) -> Result<Expr, ParseError> {
-        let (name, _) = self.expect_ident()?;
+    fn parse_ident_expr(&mut self) -> Result<SpannedExpr, ParseError> {
+        let (name, name_span) = self.expect_ident()?;
+        let start = name_span.start;
 
         // Ident::Variant(args) — VariantConstruction
         if self.check(&Token::PathSep) {
             self.advance(); // consume '::'
             let (variant, _) = self.expect_ident()?;
             self.expect_token(Token::LParen)?;
-            let args = self.parse_expr_list(Token::RParen)?;
+            let args = self.parse_spanned_expr_list(Token::RParen)?;
             self.expect_token(Token::RParen)?;
-            return Ok(Expr::VariantConstruction {
-                type_name: name,
-                variant,
-                args,
-            });
+            return Ok(self.spanned_expr(
+                Expr::VariantConstruction {
+                    type_name: name,
+                    variant,
+                    args,
+                },
+                start,
+            ));
         }
 
         // Ident { field: expr, ... } — TypeConstruction
@@ -648,11 +678,14 @@ impl Parser {
             self.advance(); // consume '{'
             let (fields, as_interfaces) = self.parse_construction_body()?;
             self.expect_token(Token::RBrace)?;
-            return Ok(Expr::TypeConstruction {
-                type_name: name,
-                fields,
-                as_interfaces,
-            });
+            return Ok(self.spanned_expr(
+                Expr::TypeConstruction {
+                    type_name: name,
+                    fields,
+                    as_interfaces,
+                },
+                start,
+            ));
         }
 
         // Ident(args) — NamedConstruction or Call
@@ -661,17 +694,20 @@ impl Parser {
             if self.is_named_arg_pattern() {
                 let fields = self.parse_field_init_list(Token::RParen)?;
                 self.expect_token(Token::RParen)?;
-                return Ok(Expr::NamedConstruction {
-                    type_name: name,
-                    fields,
-                });
+                return Ok(self.spanned_expr(
+                    Expr::NamedConstruction {
+                        type_name: name,
+                        fields,
+                    },
+                    start,
+                ));
             }
-            let args = self.parse_expr_list(Token::RParen)?;
+            let args = self.parse_spanned_expr_list(Token::RParen)?;
             self.expect_token(Token::RParen)?;
-            return Ok(Expr::Call { name, args });
+            return Ok(self.spanned_expr(Expr::Call { name, args }, start));
         }
 
-        Ok(Expr::Ident(name))
+        Ok(self.spanned_expr(Expr::Ident(name), start))
     }
 
     /// Look ahead to determine if the block after `{` contains `Ident:` pattern
@@ -740,7 +776,7 @@ impl Parser {
         while !self.check(&terminator) {
             let (name, name_span) = self.expect_ident()?;
             self.expect_token(Token::Colon)?;
-            let value = self.parse_expr()?;
+            let value = self.parse_spanned_expr()?;
             let end = self.previous_span_end();
             fields.push(FieldInit {
                 name,
@@ -767,7 +803,7 @@ impl Parser {
             } else {
                 let (name, name_span) = self.expect_ident()?;
                 self.expect_token(Token::Colon)?;
-                let value = self.parse_expr()?;
+                let value = self.parse_spanned_expr()?;
                 let end = self.previous_span_end();
                 fields.push(FieldInit {
                     name,
@@ -835,10 +871,13 @@ impl Parser {
         })
     }
 
-    fn parse_expr_list(&mut self, terminator: Token) -> Result<Vec<Expr>, ParseError> {
+    fn parse_spanned_expr_list(
+        &mut self,
+        terminator: Token,
+    ) -> Result<Vec<SpannedExpr>, ParseError> {
         let mut exprs = Vec::new();
         while !self.check(&terminator) {
-            exprs.push(self.parse_expr()?);
+            exprs.push(self.parse_spanned_expr()?);
             if self.check(&Token::Comma) {
                 self.advance();
             }
@@ -846,12 +885,12 @@ impl Parser {
         Ok(exprs)
     }
 
-    fn parse_hashmap_entries(&mut self) -> Result<Vec<(Expr, Expr)>, ParseError> {
+    fn parse_hashmap_entries(&mut self) -> Result<Vec<(SpannedExpr, SpannedExpr)>, ParseError> {
         let mut entries = Vec::new();
         while !self.check(&Token::RBrace) {
-            let key = self.parse_expr()?;
+            let key = self.parse_spanned_expr()?;
             self.expect_token(Token::Colon)?;
-            let value = self.parse_expr()?;
+            let value = self.parse_spanned_expr()?;
             entries.push((key, value));
             if self.check(&Token::Comma) {
                 self.advance();
@@ -860,13 +899,20 @@ impl Parser {
         Ok(entries)
     }
 
-    fn parse_field_access_chain(&mut self, mut expr: Expr) -> Result<Expr, ParseError> {
+    fn parse_field_access_chain(
+        &mut self,
+        mut expr: SpannedExpr,
+    ) -> Result<SpannedExpr, ParseError> {
         while self.check(&Token::Dot) {
             self.advance(); // consume '.'
-            let (field, _) = self.expect_ident()?;
-            expr = Expr::FieldAccess {
-                object: Box::new(expr),
-                field,
+            let (field, field_span) = self.expect_ident()?;
+            let start = expr.span.start;
+            expr = SpannedExpr {
+                kind: Expr::FieldAccess {
+                    object: Box::new(expr),
+                    field,
+                },
+                span: start..field_span.end,
             };
         }
         Ok(expr)
@@ -882,7 +928,7 @@ impl Parser {
                 if self.check(&Token::RParen) {
                     break;
                 }
-                fields.push(self.parse_type_expr()?);
+                fields.push(self.parse_spanned_type_expr()?);
                 if self.check(&Token::Comma) {
                     self.advance();
                 } else {
@@ -904,7 +950,7 @@ impl Parser {
         let attributes = self.parse_attributes()?;
         let (name, name_span) = self.expect_ident()?;
         self.expect_token(Token::Colon)?;
-        let ty = self.parse_type_expr()?;
+        let ty = self.parse_spanned_type_expr()?;
         let end = self.previous_span_end();
 
         let start = if let Some(attr) = attributes.first() {
@@ -921,39 +967,44 @@ impl Parser {
         })
     }
 
-    fn parse_type_expr(&mut self) -> Result<crate::ast::TypeExpr, ParseError> {
+    fn parse_spanned_type_expr(&mut self) -> Result<SpannedTypeExpr, ParseError> {
+        let start = self.current_span_start();
+
         // Self::Name
         if self.check(&Token::Self_) {
             self.advance();
             self.expect_token(Token::PathSep)?;
             let (name, _) = self.expect_ident()?;
-            return Ok(crate::ast::TypeExpr::SelfPath(name));
+            return Ok(self.spanned_type_expr(crate::ast::TypeExpr::SelfPath(name), start));
         }
 
         // Primitive type keywords
         if let Some(primitive) = self.try_parse_primitive() {
-            return Ok(crate::ast::TypeExpr::Primitive(primitive));
+            return Ok(self.spanned_type_expr(crate::ast::TypeExpr::Primitive(primitive), start));
         }
 
         // List [T]
         if self.check(&Token::LBracket) {
             self.advance();
-            let element = self.parse_type_expr()?;
+            let element = self.parse_spanned_type_expr()?;
             self.expect_token(Token::RBracket)?;
-            return Ok(crate::ast::TypeExpr::List(Box::new(element)));
+            return Ok(self.spanned_type_expr(crate::ast::TypeExpr::List(Box::new(element)), start));
         }
 
         // HashMap {K: V}
         if self.check(&Token::LBrace) {
             self.advance();
-            let key = self.parse_type_expr()?;
+            let key = self.parse_spanned_type_expr()?;
             self.expect_token(Token::Colon)?;
-            let value = self.parse_type_expr()?;
+            let value = self.parse_spanned_type_expr()?;
             self.expect_token(Token::RBrace)?;
-            return Ok(crate::ast::TypeExpr::HashMap {
-                key: Box::new(key),
-                value: Box::new(value),
-            });
+            return Ok(self.spanned_type_expr(
+                crate::ast::TypeExpr::HashMap {
+                    key: Box::new(key),
+                    value: Box::new(value),
+                },
+                start,
+            ));
         }
 
         let (name, _) = self.expect_ident()?;
@@ -962,10 +1013,13 @@ impl Parser {
         if self.check(&Token::PathSep) {
             self.advance();
             let (type_name, _) = self.expect_ident()?;
-            return Ok(crate::ast::TypeExpr::Path {
-                module: name,
-                name: type_name,
-            });
+            return Ok(self.spanned_type_expr(
+                crate::ast::TypeExpr::Path {
+                    module: name,
+                    name: type_name,
+                },
+                start,
+            ));
         }
 
         // Type<Args>
@@ -973,7 +1027,7 @@ impl Parser {
             self.advance();
             let mut args = Vec::new();
             loop {
-                args.push(self.parse_type_expr()?);
+                args.push(self.parse_spanned_type_expr()?);
                 if self.check(&Token::Comma) {
                     self.advance();
                 } else {
@@ -981,10 +1035,10 @@ impl Parser {
                 }
             }
             self.expect_token(Token::Gt)?;
-            return Ok(crate::ast::TypeExpr::Generic { name, args });
+            return Ok(self.spanned_type_expr(crate::ast::TypeExpr::Generic { name, args }, start));
         }
 
-        Ok(crate::ast::TypeExpr::Named(name))
+        Ok(self.spanned_type_expr(crate::ast::TypeExpr::Named(name), start))
     }
 
     fn try_parse_primitive(&mut self) -> Option<crate::ast::PrimitiveType> {
@@ -1027,6 +1081,30 @@ impl Parser {
             0
         }
     }
+
+    /// Return the start offset of the current token, or the end of input.
+    fn current_span_start(&self) -> usize {
+        match self.peek() {
+            Some(t) => t.span.start,
+            None => self.previous_span_end(),
+        }
+    }
+
+    /// Create a SpannedExpr from an Expr and a span.
+    fn spanned_expr(&self, kind: Expr, start: usize) -> SpannedExpr {
+        SpannedExpr {
+            kind,
+            span: start..self.previous_span_end(),
+        }
+    }
+
+    /// Create a SpannedTypeExpr from a TypeExpr and a span.
+    fn spanned_type_expr(&self, kind: crate::ast::TypeExpr, start: usize) -> SpannedTypeExpr {
+        SpannedTypeExpr {
+            kind,
+            span: start..self.previous_span_end(),
+        }
+    }
 }
 
 /// Parse a string literal, detecting `${...}` interpolation sequences.
@@ -1038,13 +1116,19 @@ impl Parser {
 /// The expression inside `${...}` is parsed as a dotted identifier path,
 /// e.g. `name` becomes `Expr::Ident("name")` and `postgres.host` becomes
 /// `Expr::FieldAccess { object: Ident("postgres"), field: "host" }`.
-fn parse_string_literal(s: &str) -> Expr {
+///
+/// `string_start` is the byte offset of the string token in the source,
+/// used to approximate spans for interpolated sub-expressions.
+fn parse_string_literal(s: &str, string_start: usize) -> Expr {
     if !s.contains("${") {
         return Expr::StringLit(s.to_string());
     }
 
     let mut parts = Vec::new();
     let mut rest = s;
+    // Track position within the string content for approximate span calculation.
+    // +1 accounts for the opening quote character.
+    let mut offset_in_string: usize = 0;
 
     while !rest.is_empty() {
         if let Some(dollar_pos) = rest.find("${") {
@@ -1058,7 +1142,13 @@ fn parse_string_literal(s: &str) -> Expr {
             match after_open.find('}') {
                 Some(close_pos) => {
                     let expr_text = &after_open[..close_pos];
-                    parts.push(StringPart::Expr(parse_dotted_path(expr_text)));
+                    // Approximate span: string_start + 1 (quote) + offset + dollar_pos + 2 (${)
+                    let expr_start = string_start + 1 + offset_in_string + dollar_pos + 2;
+                    let expr_end = expr_start + close_pos;
+                    parts.push(StringPart::Expr(parse_dotted_path(
+                        expr_text, expr_start, expr_end,
+                    )));
+                    offset_in_string += dollar_pos + 2 + close_pos + 1;
                     rest = &after_open[close_pos + 1..];
                 }
                 None => {
@@ -1082,13 +1172,21 @@ fn parse_string_literal(s: &str) -> Expr {
 /// `"name"` → `Expr::Ident("name")`
 /// `"a.b"` → `Expr::FieldAccess { object: Ident("a"), field: "b" }`
 /// `"a.b.c"` → `Expr::FieldAccess { object: FieldAccess { object: Ident("a"), field: "b" }, field: "c" }`
-fn parse_dotted_path(path: &str) -> Expr {
+///
+/// `start` and `end` provide approximate byte offsets for the whole path expression.
+fn parse_dotted_path(path: &str, start: usize, end: usize) -> SpannedExpr {
     let segments: Vec<&str> = path.split('.').collect();
-    let mut expr = Expr::Ident(segments[0].trim().to_string());
+    let mut expr = SpannedExpr {
+        kind: Expr::Ident(segments[0].trim().to_string()),
+        span: start..end,
+    };
     for segment in &segments[1..] {
-        expr = Expr::FieldAccess {
-            object: Box::new(expr),
-            field: segment.trim().to_string(),
+        expr = SpannedExpr {
+            kind: Expr::FieldAccess {
+                object: Box::new(expr),
+                field: segment.trim().to_string(),
+            },
+            span: start..end,
         };
     }
     expr
@@ -1193,83 +1291,67 @@ mod tests {
     use super::*;
     use crate::ast::{BinaryOp, Expr, Item};
 
+    /// Helper: extract the Expr kind from a let binding's value.
+    fn let_value(module: &Module) -> &Expr {
+        match &module.items[0] {
+            Item::LetBinding(l) => &l.value.kind,
+            other => panic!("expected LetBinding, got {other:?}"),
+        }
+    }
+
     // --- Collection literal syntax: #[...], #(...), #{...} ---
 
     #[test]
     fn test_parse_list_literal_new_syntax() {
-        let source = "let xs = #[1, 2, 3]";
-        let module = parse(source).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::ListLit(items) => assert_eq!(items.len(), 3),
-                other => panic!("expected ListLit, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+        let module = parse("let xs = #[1, 2, 3]").unwrap();
+        match let_value(&module) {
+            Expr::ListLit(items) => assert_eq!(items.len(), 3),
+            other => panic!("expected ListLit, got {other:?}"),
         }
     }
 
     #[test]
     fn test_parse_empty_list_literal_new_syntax() {
-        let source = "let xs = #[]";
-        let module = parse(source).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::ListLit(items) => assert!(items.is_empty()),
-                other => panic!("expected ListLit, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+        let module = parse("let xs = #[]").unwrap();
+        match let_value(&module) {
+            Expr::ListLit(items) => assert!(items.is_empty()),
+            other => panic!("expected ListLit, got {other:?}"),
         }
     }
 
     #[test]
     fn test_parse_set_literal() {
-        let source = r#"let xs = #("a", "b", "c")"#;
-        let module = parse(source).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::SetLit(items) => assert_eq!(items.len(), 3),
-                other => panic!("expected SetLit, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+        let module = parse(r#"let xs = #("a", "b", "c")"#).unwrap();
+        match let_value(&module) {
+            Expr::SetLit(items) => assert_eq!(items.len(), 3),
+            other => panic!("expected SetLit, got {other:?}"),
         }
     }
 
     #[test]
     fn test_parse_empty_set_literal() {
-        let source = "let xs = #()";
-        let module = parse(source).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::SetLit(items) => assert!(items.is_empty()),
-                other => panic!("expected SetLit, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+        let module = parse("let xs = #()").unwrap();
+        match let_value(&module) {
+            Expr::SetLit(items) => assert!(items.is_empty()),
+            other => panic!("expected SetLit, got {other:?}"),
         }
     }
 
     #[test]
     fn test_parse_hashmap_literal() {
-        let source = r#"let m = #{"key": "value", "other": "thing"}"#;
-        let module = parse(source).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::HashMapLit(entries) => assert_eq!(entries.len(), 2),
-                other => panic!("expected HashMapLit, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+        let module = parse(r#"let m = #{"key": "value", "other": "thing"}"#).unwrap();
+        match let_value(&module) {
+            Expr::HashMapLit(entries) => assert_eq!(entries.len(), 2),
+            other => panic!("expected HashMapLit, got {other:?}"),
         }
     }
 
     #[test]
     fn test_parse_empty_hashmap_literal() {
-        let source = "let m = #{}";
-        let module = parse(source).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::HashMapLit(entries) => assert!(entries.is_empty()),
-                other => panic!("expected HashMapLit, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+        let module = parse("let m = #{}").unwrap();
+        match let_value(&module) {
+            Expr::HashMapLit(entries) => assert!(entries.is_empty()),
+            other => panic!("expected HashMapLit, got {other:?}"),
         }
     }
 
@@ -1277,167 +1359,127 @@ mod tests {
 
     #[test]
     fn test_parse_builtin_map_call() {
-        let source = "let ys = map(xs, Proxy { host: it })";
-        let module = parse(source).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::Call { name, args } => {
-                    assert_eq!(name, "map");
-                    assert_eq!(args.len(), 2);
-                }
-                other => panic!("expected Call, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+        let module = parse("let ys = map(xs, Proxy { host: it })").unwrap();
+        match let_value(&module) {
+            Expr::Call { name, args } => {
+                assert_eq!(name, "map");
+                assert_eq!(args.len(), 2);
+            }
+            other => panic!("expected Call, got {other:?}"),
         }
     }
 
     #[test]
     fn test_parse_builtin_keep_with_regex() {
-        let source = r#"let filtered = keep(hosts, it =~ r"\.zone1$")"#;
-        let module = parse(source).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::Call { name, args } => {
-                    assert_eq!(name, "keep");
-                    assert_eq!(args.len(), 2);
-                    match &args[1] {
-                        Expr::BinaryOp { op, .. } => {
-                            assert_eq!(*op, BinaryOp::RegexMatch);
-                        }
-                        other => panic!("expected BinaryOp, got {other:?}"),
+        let module = parse(r#"let filtered = keep(hosts, it =~ r"\.zone1$")"#).unwrap();
+        match let_value(&module) {
+            Expr::Call { name, args } => {
+                assert_eq!(name, "keep");
+                assert_eq!(args.len(), 2);
+                match &args[1].kind {
+                    Expr::BinaryOp { op, .. } => {
+                        assert_eq!(*op, BinaryOp::RegexMatch);
                     }
+                    other => panic!("expected BinaryOp, got {other:?}"),
                 }
-                other => panic!("expected Call, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+            }
+            other => panic!("expected Call, got {other:?}"),
         }
     }
 
     #[test]
     fn test_parse_builtin_count() {
-        let source = "let n = count(xs)";
-        let module = parse(source).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::Call { name, args } => {
-                    assert_eq!(name, "count");
-                    assert_eq!(args.len(), 1);
-                }
-                other => panic!("expected Call, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+        let module = parse("let n = count(xs)").unwrap();
+        match let_value(&module) {
+            Expr::Call { name, args } => {
+                assert_eq!(name, "count");
+                assert_eq!(args.len(), 1);
+            }
+            other => panic!("expected Call, got {other:?}"),
         }
     }
 
     #[test]
     fn test_parse_builtin_sum() {
-        let source = "let total = sum(numbers)";
-        let module = parse(source).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::Call { name, args } => {
-                    assert_eq!(name, "sum");
-                    assert_eq!(args.len(), 1);
-                }
-                other => panic!("expected Call, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+        let module = parse("let total = sum(numbers)").unwrap();
+        match let_value(&module) {
+            Expr::Call { name, args } => {
+                assert_eq!(name, "sum");
+                assert_eq!(args.len(), 1);
+            }
+            other => panic!("expected Call, got {other:?}"),
         }
     }
 
     #[test]
     fn test_parse_builtin_min() {
-        let source = "let smallest = min(numbers)";
-        let module = parse(source).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::Call { name, args } => {
-                    assert_eq!(name, "min");
-                    assert_eq!(args.len(), 1);
-                }
-                other => panic!("expected Call, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+        let module = parse("let smallest = min(numbers)").unwrap();
+        match let_value(&module) {
+            Expr::Call { name, args } => {
+                assert_eq!(name, "min");
+                assert_eq!(args.len(), 1);
+            }
+            other => panic!("expected Call, got {other:?}"),
         }
     }
 
     #[test]
     fn test_parse_builtin_max() {
-        let source = "let biggest = max(numbers)";
-        let module = parse(source).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::Call { name, args } => {
-                    assert_eq!(name, "max");
-                    assert_eq!(args.len(), 1);
-                }
-                other => panic!("expected Call, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+        let module = parse("let biggest = max(numbers)").unwrap();
+        match let_value(&module) {
+            Expr::Call { name, args } => {
+                assert_eq!(name, "max");
+                assert_eq!(args.len(), 1);
+            }
+            other => panic!("expected Call, got {other:?}"),
         }
     }
 
     #[test]
     fn test_parse_builtin_mean() {
-        let source = "let avg = mean(numbers)";
-        let module = parse(source).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::Call { name, args } => {
-                    assert_eq!(name, "mean");
-                    assert_eq!(args.len(), 1);
-                }
-                other => panic!("expected Call, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+        let module = parse("let avg = mean(numbers)").unwrap();
+        match let_value(&module) {
+            Expr::Call { name, args } => {
+                assert_eq!(name, "mean");
+                assert_eq!(args.len(), 1);
+            }
+            other => panic!("expected Call, got {other:?}"),
         }
     }
 
     #[test]
     fn test_parse_builtin_median() {
-        let source = "let mid = median(numbers)";
-        let module = parse(source).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::Call { name, args } => {
-                    assert_eq!(name, "median");
-                    assert_eq!(args.len(), 1);
-                }
-                other => panic!("expected Call, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+        let module = parse("let mid = median(numbers)").unwrap();
+        match let_value(&module) {
+            Expr::Call { name, args } => {
+                assert_eq!(name, "median");
+                assert_eq!(args.len(), 1);
+            }
+            other => panic!("expected Call, got {other:?}"),
         }
     }
 
     #[test]
     fn test_parse_builtin_drop() {
-        let source = "let rest = drop(xs, 2)";
-        let module = parse(source).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::Call { name, args } => {
-                    assert_eq!(name, "drop");
-                    assert_eq!(args.len(), 2);
-                }
-                other => panic!("expected Call, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+        let module = parse("let rest = drop(xs, 2)").unwrap();
+        match let_value(&module) {
+            Expr::Call { name, args } => {
+                assert_eq!(name, "drop");
+                assert_eq!(args.len(), 2);
+            }
+            other => panic!("expected Call, got {other:?}"),
         }
     }
 
     #[test]
     fn test_parse_builtin_filter() {
-        let source = "let evens = filter(xs, it > 0)";
-        let module = parse(source).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::Call { name, args } => {
-                    assert_eq!(name, "filter");
-                    assert_eq!(args.len(), 2);
-                }
-                other => panic!("expected Call, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+        let module = parse("let evens = filter(xs, it > 0)").unwrap();
+        match let_value(&module) {
+            Expr::Call { name, args } => {
+                assert_eq!(name, "filter");
+                assert_eq!(args.len(), 2);
+            }
+            other => panic!("expected Call, got {other:?}"),
         }
     }
 
@@ -1445,329 +1487,231 @@ mod tests {
 
     #[test]
     fn test_parse_regex_match_expression() {
-        let source = r#"let matches = it =~ r"pattern""#;
-        let module = parse(source).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::BinaryOp { op, .. } => {
-                    assert_eq!(*op, BinaryOp::RegexMatch);
-                }
-                other => panic!("expected BinaryOp, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+        let module = parse(r#"let matches = it =~ r"pattern""#).unwrap();
+        match let_value(&module) {
+            Expr::BinaryOp { op, .. } => assert_eq!(*op, BinaryOp::RegexMatch),
+            other => panic!("expected BinaryOp, got {other:?}"),
         }
     }
 
     #[test]
     fn test_parse_regex_match_in_comparison_chain() {
-        let source = r#"let x = it =~ r"foo" && it =~ r"bar""#;
-        let module = parse(source).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::BinaryOp {
-                    op: BinaryOp::And, ..
-                } => {}
-                other => panic!("expected And BinaryOp, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
-        }
+        let module = parse(r#"let x = it =~ r"foo" && it =~ r"bar""#).unwrap();
+        assert!(matches!(
+            let_value(&module),
+            Expr::BinaryOp {
+                op: BinaryOp::And,
+                ..
+            }
+        ));
     }
 
     // --- Old [1, 2, 3] list literal syntax should no longer work in expression context ---
 
     #[test]
     fn test_old_bracket_list_literal_no_longer_parses_as_expression() {
-        // Plain [1, 2, 3] should fail in expression context (now need #[1, 2, 3])
-        let source = "let xs = [1, 2, 3]";
-        assert!(parse(source).is_err());
+        assert!(parse("let xs = [1, 2, 3]").is_err());
     }
 
     #[test]
     fn test_parse_let_string_literal() {
-        let input = r#"let x = "hello""#;
-        let module = parse(input).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => {
-                assert_eq!(l.name, "x");
-                assert!(matches!(&l.value, Expr::StringLit(s) if s == "hello"));
-            }
-            other => panic!("expected LetBinding, got {other:?}"),
-        }
+        let module = parse(r#"let x = "hello""#).unwrap();
+        let Item::LetBinding(l) = &module.items[0] else {
+            panic!()
+        };
+        assert_eq!(l.name, "x");
+        assert!(matches!(&l.value.kind, Expr::StringLit(s) if s == "hello"));
     }
 
     #[test]
     fn test_parse_let_number() {
-        let input = "let x = 42";
-        let module = parse(input).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => {
-                assert!(matches!(&l.value, Expr::Number(n) if n == "42"));
-            }
-            other => panic!("expected LetBinding, got {other:?}"),
-        }
+        let module = parse("let x = 42").unwrap();
+        assert!(matches!(let_value(&module), Expr::Number(n) if n == "42"));
     }
 
     #[test]
     fn test_parse_let_bool() {
-        let input = "let x = true";
-        let module = parse(input).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => {
-                assert!(matches!(&l.value, Expr::BoolLit(true)));
-            }
-            other => panic!("expected LetBinding, got {other:?}"),
-        }
+        let module = parse("let x = true").unwrap();
+        assert!(matches!(let_value(&module), Expr::BoolLit(true)));
     }
 
     #[test]
     fn test_parse_let_none() {
-        let input = "let x = None";
-        let module = parse(input).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => {
-                assert!(matches!(&l.value, Expr::None_));
-            }
-            other => panic!("expected LetBinding, got {other:?}"),
-        }
+        let module = parse("let x = None").unwrap();
+        assert!(matches!(let_value(&module), Expr::None_));
     }
 
     #[test]
     fn test_parse_let_ident_ref() {
-        let input = "let x = my_var";
-        let module = parse(input).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => {
-                assert!(matches!(&l.value, Expr::Ident(n) if n == "my_var"));
-            }
-            other => panic!("expected LetBinding, got {other:?}"),
-        }
+        let module = parse("let x = my_var").unwrap();
+        assert!(matches!(let_value(&module), Expr::Ident(n) if n == "my_var"));
     }
 
     #[test]
     fn test_parse_let_type_construction() {
-        let input = r#"let x = MyType {
-  host: "localhost",
-  port: 8080,
-}"#;
-        let module = parse(input).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::TypeConstruction {
-                    type_name, fields, ..
-                } => {
-                    assert_eq!(type_name, "MyType");
-                    assert_eq!(fields.len(), 2);
-                }
-                other => panic!("expected TypeConstruction, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+        let module = parse("let x = MyType {\n  host: \"localhost\",\n  port: 8080,\n}").unwrap();
+        match let_value(&module) {
+            Expr::TypeConstruction {
+                type_name, fields, ..
+            } => {
+                assert_eq!(type_name, "MyType");
+                assert_eq!(fields.len(), 2);
+            }
+            other => panic!("expected TypeConstruction, got {other:?}"),
         }
     }
 
     #[test]
     fn test_parse_let_variant_construction() {
-        let input = "let x = Option::Some(42)";
-        let module = parse(input).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::VariantConstruction {
-                    type_name,
-                    variant,
-                    args,
-                } => {
-                    assert_eq!(type_name, "Option");
-                    assert_eq!(variant, "Some");
-                    assert_eq!(args.len(), 1);
-                }
-                other => panic!("expected VariantConstruction, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+        let module = parse("let x = Option::Some(42)").unwrap();
+        match let_value(&module) {
+            Expr::VariantConstruction {
+                type_name,
+                variant,
+                args,
+            } => {
+                assert_eq!(type_name, "Option");
+                assert_eq!(variant, "Some");
+                assert_eq!(args.len(), 1);
+            }
+            other => panic!("expected VariantConstruction, got {other:?}"),
         }
     }
 
     #[test]
     fn test_parse_let_binary_op() {
-        let input = "let x = it >= 15 && it < 17";
-        let module = parse(input).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::BinaryOp { op, .. } => {
-                    assert_eq!(*op, BinaryOp::And);
-                }
-                other => panic!("expected BinaryOp, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+        let module = parse("let x = it >= 15 && it < 17").unwrap();
+        match let_value(&module) {
+            Expr::BinaryOp { op, .. } => assert_eq!(*op, BinaryOp::And),
+            other => panic!("expected BinaryOp, got {other:?}"),
         }
     }
 
     #[test]
     fn test_parse_let_named_construction() {
-        let input = "let x = SemVer(major: 17, minor: 0)";
-        let module = parse(input).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::NamedConstruction { type_name, fields } => {
-                    assert_eq!(type_name, "SemVer");
-                    assert_eq!(fields.len(), 2);
-                }
-                other => panic!("expected NamedConstruction, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+        let module = parse("let x = SemVer(major: 17, minor: 0)").unwrap();
+        match let_value(&module) {
+            Expr::NamedConstruction { type_name, fields } => {
+                assert_eq!(type_name, "SemVer");
+                assert_eq!(fields.len(), 2);
+            }
+            other => panic!("expected NamedConstruction, got {other:?}"),
         }
     }
 
     #[test]
     fn test_parse_let_it_keyword() {
-        let input = "let x = it";
-        let module = parse(input).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => {
-                assert!(matches!(&l.value, Expr::It));
-            }
-            other => panic!("expected LetBinding, got {other:?}"),
-        }
+        let module = parse("let x = it").unwrap();
+        assert!(matches!(let_value(&module), Expr::It));
     }
 
     #[test]
     fn test_parse_let_self_field_access() {
-        let input = "let x = Self.endpoint.user";
-        let module = parse(input).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::FieldAccess { object, field } => {
-                    assert_eq!(field, "user");
-                    match object.as_ref() {
-                        Expr::FieldAccess { object, field } => {
-                            assert_eq!(field, "endpoint");
-                            assert!(matches!(object.as_ref(), Expr::Self_));
-                        }
-                        other => panic!("expected nested FieldAccess, got {other:?}"),
+        let module = parse("let x = Self.endpoint.user").unwrap();
+        match let_value(&module) {
+            Expr::FieldAccess { object, field } => {
+                assert_eq!(field, "user");
+                match &object.kind {
+                    Expr::FieldAccess { object, field } => {
+                        assert_eq!(field, "endpoint");
+                        assert!(matches!(&object.kind, Expr::Self_));
                     }
+                    other => panic!("expected nested FieldAccess, got {other:?}"),
                 }
-                other => panic!("expected FieldAccess, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+            }
+            other => panic!("expected FieldAccess, got {other:?}"),
         }
     }
 
     #[test]
     fn test_parse_let_unary_not() {
-        let input = "let x = !my_flag";
-        let module = parse(input).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::UnaryOp { op, operand } => {
-                    assert_eq!(*op, crate::ast::UnaryOp::Not);
-                    assert!(matches!(operand.as_ref(), Expr::Ident(n) if n == "my_flag"));
-                }
-                other => panic!("expected UnaryOp, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+        let module = parse("let x = !my_flag").unwrap();
+        match let_value(&module) {
+            Expr::UnaryOp { op, operand } => {
+                assert_eq!(*op, crate::ast::UnaryOp::Not);
+                assert!(matches!(&operand.kind, Expr::Ident(n) if n == "my_flag"));
+            }
+            other => panic!("expected UnaryOp, got {other:?}"),
         }
     }
 
     #[test]
     fn test_parse_let_or_expression() {
-        let input = "let x = a || b";
-        let module = parse(input).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::BinaryOp { op, left, right } => {
-                    assert_eq!(*op, BinaryOp::Or);
-                    assert!(matches!(left.as_ref(), Expr::Ident(n) if n == "a"));
-                    assert!(matches!(right.as_ref(), Expr::Ident(n) if n == "b"));
-                }
-                other => panic!("expected BinaryOp, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+        let module = parse("let x = a || b").unwrap();
+        match let_value(&module) {
+            Expr::BinaryOp { op, left, right } => {
+                assert_eq!(*op, BinaryOp::Or);
+                assert!(matches!(&left.kind, Expr::Ident(n) if n == "a"));
+                assert!(matches!(&right.kind, Expr::Ident(n) if n == "b"));
+            }
+            other => panic!("expected BinaryOp, got {other:?}"),
         }
     }
 
     #[test]
     fn test_parse_let_equality() {
-        let input = "let x = a == b";
-        let module = parse(input).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::BinaryOp { op, .. } => {
-                    assert_eq!(*op, BinaryOp::Eq);
-                }
-                other => panic!("expected BinaryOp, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+        let module = parse("let x = a == b").unwrap();
+        match let_value(&module) {
+            Expr::BinaryOp { op, .. } => assert_eq!(*op, BinaryOp::Eq),
+            other => panic!("expected BinaryOp, got {other:?}"),
         }
     }
 
     #[test]
     fn test_parse_let_call_positional() {
-        let input = "let x = Some(42)";
-        let module = parse(input).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::Call { name, args } => {
-                    assert_eq!(name, "Some");
-                    assert_eq!(args.len(), 1);
-                    assert!(matches!(&args[0], Expr::Number(n) if n == "42"));
-                }
-                other => panic!("expected Call, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+        let module = parse("let x = Some(42)").unwrap();
+        match let_value(&module) {
+            Expr::Call { name, args } => {
+                assert_eq!(name, "Some");
+                assert_eq!(args.len(), 1);
+                assert!(matches!(&args[0].kind, Expr::Number(n) if n == "42"));
+            }
+            other => panic!("expected Call, got {other:?}"),
         }
     }
 
     #[test]
     fn test_parse_let_binding_with_type_annotation() {
-        let input = "let port: number = 5432";
-        let module = parse(input).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => {
-                assert_eq!(l.name, "port");
-                assert!(l.ty.is_some());
-                assert!(matches!(
-                    l.ty.as_ref().unwrap(),
-                    crate::ast::TypeExpr::Primitive(crate::ast::PrimitiveType::Number)
-                ));
-                assert!(matches!(&l.value, Expr::Number(n) if n == "5432"));
-            }
-            other => panic!("expected LetBinding, got {other:?}"),
-        }
+        let module = parse("let port: number = 5432").unwrap();
+        let Item::LetBinding(l) = &module.items[0] else {
+            panic!()
+        };
+        assert_eq!(l.name, "port");
+        assert!(l.ty.is_some());
+        assert!(matches!(
+            &l.ty.as_ref().unwrap().kind,
+            crate::ast::TypeExpr::Primitive(crate::ast::PrimitiveType::Number)
+        ));
+        assert!(matches!(&l.value.kind, Expr::Number(n) if n == "5432"));
     }
 
     #[test]
     fn test_parse_let_binding_without_type_annotation() {
-        let input = "let port = 5432";
-        let module = parse(input).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => {
-                assert_eq!(l.name, "port");
-                assert!(l.ty.is_none());
-                assert!(matches!(&l.value, Expr::Number(n) if n == "5432"));
-            }
-            other => panic!("expected LetBinding, got {other:?}"),
-        }
+        let module = parse("let port = 5432").unwrap();
+        let Item::LetBinding(l) = &module.items[0] else {
+            panic!()
+        };
+        assert_eq!(l.name, "port");
+        assert!(l.ty.is_none());
+        assert!(matches!(&l.value.kind, Expr::Number(n) if n == "5432"));
     }
 
     #[test]
     fn test_parse_precedence_and_binds_tighter_than_or() {
-        // a || b && c should parse as a || (b && c)
-        let input = "let x = a || b && c";
-        let module = parse(input).unwrap();
-        match &module.items[0] {
-            Item::LetBinding(l) => match &l.value {
-                Expr::BinaryOp { op, left, right } => {
-                    assert_eq!(*op, BinaryOp::Or);
-                    assert!(matches!(left.as_ref(), Expr::Ident(n) if n == "a"));
-                    assert!(matches!(
-                        right.as_ref(),
-                        Expr::BinaryOp {
-                            op: BinaryOp::And,
-                            ..
-                        }
-                    ));
-                }
-                other => panic!("expected BinaryOp, got {other:?}"),
-            },
-            other => panic!("expected LetBinding, got {other:?}"),
+        let module = parse("let x = a || b && c").unwrap();
+        match let_value(&module) {
+            Expr::BinaryOp { op, left, right } => {
+                assert_eq!(*op, BinaryOp::Or);
+                assert!(matches!(&left.kind, Expr::Ident(n) if n == "a"));
+                assert!(matches!(
+                    &right.kind,
+                    Expr::BinaryOp {
+                        op: BinaryOp::And,
+                        ..
+                    }
+                ));
+            }
+            other => panic!("expected BinaryOp, got {other:?}"),
         }
     }
 }

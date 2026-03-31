@@ -1,4 +1,6 @@
-use crate::analysis::infer::{TypeInfo, infer_expr_type, type_expr_to_type_info, types_compatible};
+use crate::analysis::infer::{
+    TypeInfo, infer_expr_type, spanned_type_expr_to_type_info, types_compatible,
+};
 use crate::analysis::registry::TypeRegistry;
 use crate::ast::TypeExpr;
 use crate::diagnostics::{DiagnosticKind, Diagnostics};
@@ -44,7 +46,7 @@ pub fn unify(registry: &TypeRegistry) -> Diagnostics {
 
             if let Some(mapping) = mapping {
                 // Field is mapped -- check type compatibility
-                let expected = type_expr_to_type_info(&field.ty);
+                let expected = spanned_type_expr_to_type_info(&field.ty);
                 let actual = infer_expr_type(&mapping.value, &impl_block.type_name, registry);
 
                 if !matches!(actual, TypeInfo::Unknown) && !types_compatible(&expected, &actual) {
@@ -65,7 +67,8 @@ pub fn unify(registry: &TypeRegistry) -> Diagnostics {
                 continue;
             }
 
-            let is_option = matches!(&field.ty, TypeExpr::Generic { name, .. } if name == "Option");
+            let is_option =
+                matches!(&field.ty.kind, TypeExpr::Generic { name, .. } if name == "Option");
             if is_option {
                 continue;
             }

@@ -122,7 +122,7 @@ fn test_spin_macro_with_string_interpolation() {
     match &module.items[0] {
         Item::LetBinding(l) => {
             assert!(
-                matches!(&l.value, Expr::StringInterpolation(_)),
+                matches!(&l.value.kind, Expr::StringInterpolation(_)),
                 "expected StringInterpolation, got {:?}",
                 l.value
             );
@@ -139,7 +139,7 @@ fn test_spin_macro_with_dotted_interpolation() {
     match &module.items[0] {
         Item::LetBinding(l) => {
             assert!(
-                matches!(&l.value, Expr::StringInterpolation(_)),
+                matches!(&l.value.kind, Expr::StringInterpolation(_)),
                 "expected StringInterpolation, got {:?}",
                 l.value
             );

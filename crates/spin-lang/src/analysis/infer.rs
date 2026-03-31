@@ -1,5 +1,5 @@
 use crate::analysis::registry::{TypeDef, TypeRegistry};
-use crate::ast::{Expr, PrimitiveType, TypeExpr};
+use crate::ast::{Expr, PrimitiveType, SpannedExpr, SpannedTypeExpr, TypeExpr};
 
 /// Represents the inferred type of an expression.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,20 +41,23 @@ pub fn type_expr_to_type_info(ty: &TypeExpr) -> TypeInfo {
         TypeExpr::Named(name) => TypeInfo::Named(name.clone()),
         TypeExpr::Generic { name, args } => TypeInfo::Generic {
             name: name.clone(),
-            args: args.iter().map(type_expr_to_type_info).collect(),
+            args: args
+                .iter()
+                .map(|a| type_expr_to_type_info(&a.kind))
+                .collect(),
         },
         TypeExpr::Path { module, name } => TypeInfo::Named(format!("{module}::{name}")),
         TypeExpr::SelfPath(name) => TypeInfo::Named(format!("Self::{name}")),
         TypeExpr::List(element) => {
-            let inner = type_expr_to_type_info(element);
+            let inner = type_expr_to_type_info(&element.kind);
             TypeInfo::Generic {
                 name: "List".to_string(),
                 args: vec![inner],
             }
         }
         TypeExpr::HashMap { key, value } => {
-            let key_info = type_expr_to_type_info(key);
-            let value_info = type_expr_to_type_info(value);
+            let key_info = type_expr_to_type_info(&key.kind);
+            let value_info = type_expr_to_type_info(&value.kind);
             TypeInfo::Generic {
                 name: "HashMap".to_string(),
                 args: vec![key_info, value_info],
@@ -63,11 +66,20 @@ pub fn type_expr_to_type_info(ty: &TypeExpr) -> TypeInfo {
     }
 }
 
+/// Convert a `SpannedTypeExpr` to `TypeInfo`.
+pub fn spanned_type_expr_to_type_info(ty: &SpannedTypeExpr) -> TypeInfo {
+    type_expr_to_type_info(&ty.kind)
+}
+
 /// Infer the type of an expression within the context of an implementing type.
 ///
 /// `impl_type_name` is the name of the type in the `impl ... for <Type>` block.
-pub fn infer_expr_type(expr: &Expr, impl_type_name: &str, registry: &TypeRegistry) -> TypeInfo {
-    match expr {
+pub fn infer_expr_type(
+    expr: &SpannedExpr,
+    impl_type_name: &str,
+    registry: &TypeRegistry,
+) -> TypeInfo {
+    match &expr.kind {
         Expr::Self_ => TypeInfo::Named(impl_type_name.to_string()),
 
         Expr::StringLit(_) | Expr::StringInterpolation(_) => {
@@ -92,7 +104,7 @@ pub fn infer_expr_type(expr: &Expr, impl_type_name: &str, registry: &TypeRegistr
             if let Some(binding) = registry.lookup_binding(name)
                 && let Some(ty) = &binding.ty
             {
-                return type_expr_to_type_info(ty);
+                return spanned_type_expr_to_type_info(ty);
             }
             TypeInfo::Unknown
         }
@@ -126,7 +138,7 @@ fn resolve_field_type(
         TypeDef::Record(record) => {
             for f in &record.fields {
                 if f.name == field_name {
-                    return type_expr_to_type_info(&f.ty);
+                    return type_expr_to_type_info(&f.ty.kind);
                 }
             }
             TypeInfo::Unknown

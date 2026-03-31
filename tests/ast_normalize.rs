@@ -1,7 +1,13 @@
 use spin_up::ast::{
-    Attribute, ChoiceDef, Field, Item, PrimitiveType, RecordDef, TypeExpr, Variant,
+    Attribute, ChoiceDef, Field, Item, PrimitiveType, RecordDef, Spanned, SpannedTypeExpr,
+    TypeExpr, Variant,
 };
 use spin_up::ast_normalize::normalize_item;
+
+/// Helper: wrap a TypeExpr in a SpannedTypeExpr with a dummy span.
+fn st(kind: TypeExpr) -> SpannedTypeExpr {
+    Spanned { kind, span: 0..0 }
+}
 
 #[test]
 fn test_normalize_strips_spans() {
@@ -11,7 +17,7 @@ fn test_normalize_strips_spans() {
         attributes: vec![],
         fields: vec![Field {
             name: "x".to_string(),
-            ty: TypeExpr::Primitive(PrimitiveType::Number),
+            ty: st(TypeExpr::Primitive(PrimitiveType::Number)),
             attributes: vec![],
             span: 0..10,
         }],
@@ -24,7 +30,7 @@ fn test_normalize_strips_spans() {
         attributes: vec![],
         fields: vec![Field {
             name: "x".to_string(),
-            ty: TypeExpr::Primitive(PrimitiveType::Number),
+            ty: st(TypeExpr::Primitive(PrimitiveType::Number)),
             attributes: vec![],
             span: 50..60,
         }],
@@ -42,7 +48,7 @@ fn test_normalize_different_items_not_equal() {
         attributes: vec![],
         fields: vec![Field {
             name: "x".to_string(),
-            ty: TypeExpr::Primitive(PrimitiveType::Number),
+            ty: st(TypeExpr::Primitive(PrimitiveType::Number)),
             attributes: vec![],
             span: 0..10,
         }],
@@ -55,7 +61,7 @@ fn test_normalize_different_items_not_equal() {
         attributes: vec![],
         fields: vec![Field {
             name: "x".to_string(),
-            ty: TypeExpr::Primitive(PrimitiveType::Number),
+            ty: st(TypeExpr::Primitive(PrimitiveType::Number)),
             attributes: vec![],
             span: 0..10,
         }],
@@ -78,12 +84,12 @@ fn test_normalize_choice() {
         variants: vec![
             Variant {
                 name: "V4".to_string(),
-                fields: vec![TypeExpr::Named("IpAddrV4".to_string())],
+                fields: vec![st(TypeExpr::Named("IpAddrV4".to_string()))],
                 span: 0..15,
             },
             Variant {
                 name: "V6".to_string(),
-                fields: vec![TypeExpr::Named("IpAddrV6".to_string())],
+                fields: vec![st(TypeExpr::Named("IpAddrV6".to_string()))],
                 span: 16..30,
             },
         ],

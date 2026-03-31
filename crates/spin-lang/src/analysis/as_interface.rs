@@ -1,5 +1,5 @@
 use crate::analysis::registry::TypeRegistry;
-use crate::ast::Expr;
+use crate::ast::{Expr, SpannedExpr};
 use crate::diagnostics::{DiagnosticKind, Diagnostics};
 
 /// Validate all `<as Interface> { ... }` blocks in type constructions.
@@ -18,12 +18,12 @@ pub fn check_as_interfaces(registry: &TypeRegistry) -> Diagnostics {
     diags
 }
 
-fn check_expr(registry: &TypeRegistry, expr: &Expr, diags: &mut Diagnostics) {
+fn check_expr(registry: &TypeRegistry, expr: &SpannedExpr, diags: &mut Diagnostics) {
     let Expr::TypeConstruction {
         type_name,
         as_interfaces,
         fields,
-    } = expr
+    } = &expr.kind
     else {
         return;
     };

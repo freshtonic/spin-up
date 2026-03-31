@@ -6,6 +6,7 @@ use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
 
 use spin_lang::ast::*;
+use spin_lang::ast::{SpannedExpr, TypeExpr};
 use spin_lang::parser;
 
 pub struct SpinBackend {
@@ -125,14 +126,14 @@ fn collect_fields_for_type(module: &Module, type_name: &str) -> Vec<(String, Str
                 return r
                     .fields
                     .iter()
-                    .map(|f| (f.name.clone(), format_type_expr(&f.ty)))
+                    .map(|f| (f.name.clone(), format_type_expr(&f.ty.kind)))
                     .collect();
             }
             Item::InterfaceDef(i) if i.name == type_name => {
                 return i
                     .fields
                     .iter()
-                    .map(|f| (f.name.clone(), format_type_expr(&f.ty)))
+                    .map(|f| (f.name.clone(), format_type_expr(&f.ty.kind)))
                     .collect();
             }
             _ => {}
@@ -148,13 +149,17 @@ fn format_type_expr(ty: &TypeExpr) -> String {
         TypeExpr::Primitive(p) => format!("{p:?}").to_lowercase(),
         TypeExpr::Path { module, name } => format!("{module}::{name}"),
         TypeExpr::Generic { name, args } => {
-            let args_str: Vec<String> = args.iter().map(format_type_expr).collect();
+            let args_str: Vec<String> = args.iter().map(|a| format_type_expr(&a.kind)).collect();
             format!("{name}<{}>", args_str.join(", "))
         }
         TypeExpr::SelfPath(n) => format!("Self::{n}"),
-        TypeExpr::List(element) => format!("[{}]", format_type_expr(element)),
+        TypeExpr::List(element) => format!("[{}]", format_type_expr(&element.kind)),
         TypeExpr::HashMap { key, value } => {
-            format!("{{{}: {}}}", format_type_expr(key), format_type_expr(value))
+            format!(
+                "{{{}: {}}}",
+                format_type_expr(&key.kind),
+                format_type_expr(&value.kind)
+            )
         }
     }
 }
@@ -295,10 +300,10 @@ fn find_let_binding_type(module: &Module, name: &str) -> Option<String> {
         {
             // If it has an explicit type annotation, use that
             if let Some(ref ty) = lb.ty {
-                return Some(format_type_expr(ty));
+                return Some(format_type_expr(&ty.kind));
             }
             // Otherwise try to infer from TypeConstruction
-            if let Expr::TypeConstruction { type_name, .. } = &lb.value {
+            if let Expr::TypeConstruction { type_name, .. } = &lb.value.kind {
                 return Some(type_name.clone());
             }
         }
@@ -328,7 +333,7 @@ fn hover_at(source: &str, module: Option<&Module>, offset: usize) -> Option<Stri
                 let fields: Vec<String> = r
                     .fields
                     .iter()
-                    .map(|f| format!("  {}: {}", f.name, format_type_expr(&f.ty)))
+                    .map(|f| format!("  {}: {}", f.name, format_type_expr(&f.ty.kind)))
                     .collect();
                 return Some(format!(
                     "**type** {}\n\n```\ntype {} =\n{};\n```",
@@ -345,7 +350,8 @@ fn hover_at(source: &str, module: Option<&Module>, offset: usize) -> Option<Stri
                         if v.fields.is_empty() {
                             v.name.clone()
                         } else {
-                            let args: Vec<String> = v.fields.iter().map(format_type_expr).collect();
+                            let args: Vec<String> =
+                                v.fields.iter().map(|f| format_type_expr(&f.kind)).collect();
                             format!("{}({})", v.name, args.join(", "))
                         }
                     })
@@ -361,7 +367,7 @@ fn hover_at(source: &str, module: Option<&Module>, offset: usize) -> Option<Stri
                 let fields: Vec<String> = i
                     .fields
                     .iter()
-                    .map(|f| format!("  {}: {}", f.name, format_type_expr(&f.ty)))
+                    .map(|f| format!("  {}: {}", f.name, format_type_expr(&f.ty.kind)))
                     .collect();
                 return Some(format!(
                     "**interface** {}\n\n```\ninterface {} =\n{};\n```",
@@ -384,7 +390,7 @@ fn hover_at(source: &str, module: Option<&Module>, offset: usize) -> Option<Stri
                             "**field** `{}` of type `{}`\n\nType: `{}`",
                             word,
                             r.name,
-                            format_type_expr(&f.ty)
+                            format_type_expr(&f.ty.kind)
                         ));
                     }
                 }
@@ -396,7 +402,7 @@ fn hover_at(source: &str, module: Option<&Module>, offset: usize) -> Option<Stri
                             "**field** `{}` of interface `{}`\n\nType: `{}`",
                             word,
                             i.name,
-                            format_type_expr(&f.ty)
+                            format_type_expr(&f.ty.kind)
                         ));
                     }
                 }
@@ -498,7 +504,7 @@ fn find_in_item(item: &Item, name: &str, ranges: &mut Vec<std::ops::Range<usize>
                     ranges.push(v.span.start..v.span.start + v.name.len());
                 }
                 for ty in &v.fields {
-                    find_in_type_expr(ty, name, ranges);
+                    find_in_type_expr(&ty.kind, &ty.span, name, ranges);
                 }
             }
         }
@@ -512,7 +518,7 @@ fn find_in_item(item: &Item, name: &str, ranges: &mut Vec<std::ops::Range<usize>
                 if f.name == name {
                     ranges.push(f.span.start..f.span.start + f.name.len());
                 }
-                find_in_type_expr(&f.ty, name, ranges);
+                find_in_type_expr(&f.ty.kind, &f.ty.span, name, ranges);
             }
         }
         Item::ImplBlock(ib) => {
@@ -531,7 +537,7 @@ fn find_in_item(item: &Item, name: &str, ranges: &mut Vec<std::ops::Range<usize>
                 if m.name == name {
                     ranges.push(m.span.start..m.span.start + m.name.len());
                 }
-                find_in_expr(&m.value, name, ranges);
+                find_in_spanned_expr(&m.value, name, ranges);
             }
         }
         Item::LetBinding(lb) => {
@@ -541,9 +547,9 @@ fn find_in_item(item: &Item, name: &str, ranges: &mut Vec<std::ops::Range<usize>
                 ranges.push(name_start..name_end);
             }
             if let Some(ref ty) = lb.ty {
-                find_in_type_expr(ty, name, ranges);
+                find_in_type_expr(&ty.kind, &ty.span, name, ranges);
             }
-            find_in_expr(&lb.value, name, ranges);
+            find_in_spanned_expr(&lb.value, name, ranges);
         }
     }
 }
@@ -552,24 +558,52 @@ fn find_in_field(field: &Field, name: &str, ranges: &mut Vec<std::ops::Range<usi
     if field.name == name {
         ranges.push(field.span.start..field.span.start + field.name.len());
     }
-    find_in_type_expr(&field.ty, name, ranges);
+    find_in_type_expr(&field.ty.kind, &field.ty.span, name, ranges);
 }
 
-fn find_in_type_expr(_ty: &TypeExpr, _name: &str, _ranges: &mut Vec<std::ops::Range<usize>>) {
-    // TypeExpr doesn't carry spans currently, so we can't provide accurate ranges
-    // for type references. This is a known limitation.
+fn find_in_type_expr(
+    ty: &TypeExpr,
+    span: &std::ops::Range<usize>,
+    name: &str,
+    ranges: &mut Vec<std::ops::Range<usize>>,
+) {
+    match ty {
+        TypeExpr::Named(n) if n == name => {
+            ranges.push(span.clone());
+        }
+        TypeExpr::Generic { name: n, args } if n == name => {
+            // Push span for the generic type name itself
+            ranges.push(span.start..span.start + n.len());
+            for arg in args {
+                find_in_type_expr(&arg.kind, &arg.span, name, ranges);
+            }
+        }
+        TypeExpr::Generic { args, .. } => {
+            for arg in args {
+                find_in_type_expr(&arg.kind, &arg.span, name, ranges);
+            }
+        }
+        TypeExpr::List(element) => {
+            find_in_type_expr(&element.kind, &element.span, name, ranges);
+        }
+        TypeExpr::HashMap { key, value } => {
+            find_in_type_expr(&key.kind, &key.span, name, ranges);
+            find_in_type_expr(&value.kind, &value.span, name, ranges);
+        }
+        TypeExpr::Path { module: _, name: n } if n == name => {
+            // Approximate: we don't have the exact span of the name part
+        }
+        _ => {}
+    }
 }
 
-// Expr variants don't carry spans yet, so `ranges` is only passed through to recursive
-// calls. Once spans are added to Expr, this function will push directly to `ranges`.
-#[allow(clippy::only_used_in_recursion)]
-fn find_in_expr(expr: &Expr, name: &str, ranges: &mut Vec<std::ops::Range<usize>>) {
-    match expr {
+fn find_in_spanned_expr(expr: &SpannedExpr, name: &str, ranges: &mut Vec<std::ops::Range<usize>>) {
+    match &expr.kind {
         Expr::Ident(ident) if ident == name => {
-            // Expr doesn't carry spans currently - known limitation
+            ranges.push(expr.span.clone());
         }
         Expr::FieldAccess { object, field: _ } => {
-            find_in_expr(object, name, ranges);
+            find_in_spanned_expr(object, name, ranges);
         }
         Expr::TypeConstruction {
             type_name: _,
@@ -577,34 +611,34 @@ fn find_in_expr(expr: &Expr, name: &str, ranges: &mut Vec<std::ops::Range<usize>
             as_interfaces,
         } => {
             for fi in fields {
-                find_in_expr(&fi.value, name, ranges);
+                find_in_spanned_expr(&fi.value, name, ranges);
             }
             for ai in as_interfaces {
                 for fi in &ai.fields {
-                    find_in_expr(&fi.value, name, ranges);
+                    find_in_spanned_expr(&fi.value, name, ranges);
                 }
             }
         }
         Expr::BinaryOp { left, right, .. } => {
-            find_in_expr(left, name, ranges);
-            find_in_expr(right, name, ranges);
+            find_in_spanned_expr(left, name, ranges);
+            find_in_spanned_expr(right, name, ranges);
         }
         Expr::UnaryOp { operand, .. } => {
-            find_in_expr(operand, name, ranges);
+            find_in_spanned_expr(operand, name, ranges);
         }
         Expr::Call { args, .. } => {
             for arg in args {
-                find_in_expr(arg, name, ranges);
+                find_in_spanned_expr(arg, name, ranges);
             }
         }
         Expr::VariantConstruction { args, .. } => {
             for arg in args {
-                find_in_expr(arg, name, ranges);
+                find_in_spanned_expr(arg, name, ranges);
             }
         }
         Expr::NamedConstruction { fields, .. } => {
             for fi in fields {
-                find_in_expr(&fi.value, name, ranges);
+                find_in_spanned_expr(&fi.value, name, ranges);
             }
         }
         _ => {}
@@ -1148,6 +1182,14 @@ mod tests {
 
     // --- Format type expression tests ---
 
+    /// Helper to create a dummy-spanned TypeExpr for tests.
+    fn dummy_spanned_ty(ty: TypeExpr) -> SpannedTypeExpr {
+        SpannedTypeExpr {
+            kind: ty,
+            span: 0..0,
+        }
+    }
+
     #[test]
     fn format_type_expr_named() {
         assert_eq!(format_type_expr(&TypeExpr::Named("Foo".to_string())), "Foo");
@@ -1177,7 +1219,7 @@ mod tests {
         assert_eq!(
             format_type_expr(&TypeExpr::Generic {
                 name: "Option".to_string(),
-                args: vec![TypeExpr::Primitive(PrimitiveType::Number)],
+                args: vec![dummy_spanned_ty(TypeExpr::Primitive(PrimitiveType::Number))],
             }),
             "Option<number>"
         );
@@ -1186,8 +1228,8 @@ mod tests {
     #[test]
     fn format_type_expr_list() {
         assert_eq!(
-            format_type_expr(&TypeExpr::List(Box::new(TypeExpr::Primitive(
-                PrimitiveType::Number
+            format_type_expr(&TypeExpr::List(Box::new(dummy_spanned_ty(
+                TypeExpr::Primitive(PrimitiveType::Number)
             )))),
             "[number]"
         );
@@ -1197,8 +1239,8 @@ mod tests {
     fn format_type_expr_hashmap() {
         assert_eq!(
             format_type_expr(&TypeExpr::HashMap {
-                key: Box::new(TypeExpr::Primitive(PrimitiveType::String)),
-                value: Box::new(TypeExpr::Primitive(PrimitiveType::Number)),
+                key: Box::new(dummy_spanned_ty(TypeExpr::Primitive(PrimitiveType::String))),
+                value: Box::new(dummy_spanned_ty(TypeExpr::Primitive(PrimitiveType::Number))),
             }),
             "{string: number}"
         );

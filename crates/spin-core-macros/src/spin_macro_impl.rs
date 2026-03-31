@@ -331,7 +331,7 @@ mod tests {
         match &module.items[0] {
             spin_lang::ast::Item::LetBinding(l) => {
                 assert!(matches!(
-                    &l.value,
+                    &l.value.kind,
                     spin_lang::ast::Expr::StringLit(s) if s == "hello world"
                 ));
             }

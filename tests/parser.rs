@@ -1,10 +1,20 @@
 use spin_up::ast::{
     AsInterfaceBlock, Attribute, BinaryOp, ChoiceDef, Expr, FieldInit, FieldMapping, ImplBlock,
-    InterfaceDef, InterfaceField, Item, LetBinding, PrimitiveType, RecordDef, StringPart, TypeExpr,
-    UnaryOp, Variant,
+    InterfaceDef, InterfaceField, Item, LetBinding, PrimitiveType, RecordDef, Spanned, SpannedExpr,
+    SpannedTypeExpr, StringPart, TypeExpr, UnaryOp, Variant,
 };
 use spin_up::parser::parse;
 use spin_up::spin;
+
+/// Helper: wrap an Expr in a SpannedExpr with a dummy span.
+fn se(kind: Expr) -> SpannedExpr {
+    Spanned { kind, span: 0..0 }
+}
+
+/// Helper: wrap a TypeExpr in a SpannedTypeExpr with a dummy span.
+fn st(kind: TypeExpr) -> SpannedTypeExpr {
+    Spanned { kind, span: 0..0 }
+}
 
 // Note: The `resource` keyword has been removed. Resource definitions now use
 // the `type` keyword with record (product type) syntax: `type Foo = field: Type;`
@@ -66,7 +76,7 @@ fn test_parse_resource_with_simple_field() {
         Item::RecordDef(r) => {
             assert_eq!(r.fields.len(), 1);
             assert_eq!(r.fields[0].name, "host");
-            assert!(matches!(&r.fields[0].ty, TypeExpr::Named(n) if n == "String"));
+            assert!(matches!(&r.fields[0].ty.kind, TypeExpr::Named(n) if n == "String"));
         }
         other => panic!("expected RecordDef, got {other:?}"),
     }
@@ -78,7 +88,7 @@ fn test_parse_resource_with_qualified_type() {
     match &module.items[0] {
         Item::RecordDef(r) => {
             assert_eq!(r.fields[0].name, "port");
-            match &r.fields[0].ty {
+            match &r.fields[0].ty.kind {
                 TypeExpr::Path { module, name } => {
                     assert_eq!(module, "spin-core");
                     assert_eq!(name, "TcpPort");
@@ -94,11 +104,11 @@ fn test_parse_resource_with_qualified_type() {
 fn test_parse_resource_with_generic_type() {
     let module = spin! { type Postgres = tls: Option<Self::Tls>; };
     match &module.items[0] {
-        Item::RecordDef(r) => match &r.fields[0].ty {
+        Item::RecordDef(r) => match &r.fields[0].ty.kind {
             TypeExpr::Generic { name, args } => {
                 assert_eq!(name, "Option");
                 assert_eq!(args.len(), 1);
-                assert!(matches!(&args[0], TypeExpr::SelfPath(n) if n == "Tls"));
+                assert!(matches!(&args[0].kind, TypeExpr::SelfPath(n) if n == "Tls"));
             }
             other => panic!("expected Generic, got {other:?}"),
         },
@@ -111,7 +121,7 @@ fn test_parse_resource_with_self_path() {
     let module = spin! { type Postgres = tls: Self::Tls; };
     match &module.items[0] {
         Item::RecordDef(r) => {
-            assert!(matches!(&r.fields[0].ty, TypeExpr::SelfPath(n) if n == "Tls"));
+            assert!(matches!(&r.fields[0].ty.kind, TypeExpr::SelfPath(n) if n == "Tls"));
         }
         other => panic!("expected RecordDef, got {other:?}"),
     }
@@ -216,7 +226,7 @@ fn test_ast_choice_def_construction() {
         variants: vec![
             Variant {
                 name: "V4".to_string(),
-                fields: vec![TypeExpr::Named("IpAddrV4".to_string())],
+                fields: vec![st(TypeExpr::Named("IpAddrV4".to_string()))],
                 span: 20..35,
             },
             Variant {
@@ -238,7 +248,7 @@ fn test_ast_choice_def_construction() {
 fn test_ast_variant_construction() {
     let variant = Variant {
         name: "Some".to_string(),
-        fields: vec![TypeExpr::Primitive(PrimitiveType::Number)],
+        fields: vec![st(TypeExpr::Primitive(PrimitiveType::Number))],
         span: 0..10,
     };
     assert_eq!(variant.name, "Some");
@@ -262,11 +272,11 @@ fn test_ast_type_expr_primitive() {
 
 #[test]
 fn test_ast_type_expr_list() {
-    let ty = TypeExpr::List(Box::new(TypeExpr::Primitive(PrimitiveType::Number)));
+    let ty = TypeExpr::List(Box::new(st(TypeExpr::Primitive(PrimitiveType::Number))));
     match ty {
         TypeExpr::List(element) => {
             assert!(matches!(
-                *element,
+                element.kind,
                 TypeExpr::Primitive(PrimitiveType::Number)
             ));
         }
@@ -277,13 +287,19 @@ fn test_ast_type_expr_list() {
 #[test]
 fn test_ast_type_expr_hashmap() {
     let ty = TypeExpr::HashMap {
-        key: Box::new(TypeExpr::Primitive(PrimitiveType::String)),
-        value: Box::new(TypeExpr::Primitive(PrimitiveType::Number)),
+        key: Box::new(st(TypeExpr::Primitive(PrimitiveType::String))),
+        value: Box::new(st(TypeExpr::Primitive(PrimitiveType::Number))),
     };
     match ty {
         TypeExpr::HashMap { key, value } => {
-            assert!(matches!(*key, TypeExpr::Primitive(PrimitiveType::String)));
-            assert!(matches!(*value, TypeExpr::Primitive(PrimitiveType::Number)));
+            assert!(matches!(
+                key.kind,
+                TypeExpr::Primitive(PrimitiveType::String)
+            ));
+            assert!(matches!(
+                value.kind,
+                TypeExpr::Primitive(PrimitiveType::Number)
+            ));
         }
         other => panic!("expected HashMap, got {other:?}"),
     }
@@ -546,15 +562,15 @@ fn test_parse_primitive_type_in_field() {
     match &module.items[0] {
         Item::RecordDef(r) => {
             assert!(matches!(
-                &r.fields[0].ty,
+                &r.fields[0].ty.kind,
                 TypeExpr::Primitive(PrimitiveType::Number)
             ));
             assert!(matches!(
-                &r.fields[1].ty,
+                &r.fields[1].ty.kind,
                 TypeExpr::Primitive(PrimitiveType::Bool)
             ));
             assert!(matches!(
-                &r.fields[2].ty,
+                &r.fields[2].ty.kind,
                 TypeExpr::Primitive(PrimitiveType::String)
             ));
         }
@@ -566,10 +582,10 @@ fn test_parse_primitive_type_in_field() {
 fn test_parse_list_type() {
     let module = spin! { type Foo = data: [number]; };
     match &module.items[0] {
-        Item::RecordDef(r) => match &r.fields[0].ty {
+        Item::RecordDef(r) => match &r.fields[0].ty.kind {
             TypeExpr::List(element) => {
                 assert!(matches!(
-                    element.as_ref(),
+                    &element.kind,
                     TypeExpr::Primitive(PrimitiveType::Number)
                 ));
             }
@@ -583,14 +599,14 @@ fn test_parse_list_type() {
 fn test_parse_hashmap_type() {
     let module = parse("type Foo = data: {string: number};").unwrap();
     match &module.items[0] {
-        Item::RecordDef(r) => match &r.fields[0].ty {
+        Item::RecordDef(r) => match &r.fields[0].ty.kind {
             TypeExpr::HashMap { key, value } => {
                 assert!(matches!(
-                    key.as_ref(),
+                    &key.kind,
                     TypeExpr::Primitive(PrimitiveType::String)
                 ));
                 assert!(matches!(
-                    value.as_ref(),
+                    &value.kind,
                     TypeExpr::Primitive(PrimitiveType::Number)
                 ));
             }
@@ -631,12 +647,12 @@ fn test_expr_ident_construction() {
 #[test]
 fn test_expr_field_access_construction() {
     let expr = Expr::FieldAccess {
-        object: Box::new(Expr::Self_),
+        object: Box::new(se(Expr::Self_)),
         field: "port".to_string(),
     };
     match expr {
         Expr::FieldAccess { object, field } => {
-            assert!(matches!(*object, Expr::Self_));
+            assert!(matches!(object.kind, Expr::Self_));
             assert_eq!(field, "port");
         }
         other => panic!("expected FieldAccess, got {other:?}"),
@@ -649,7 +665,7 @@ fn test_expr_type_construction() {
         type_name: "Proxy".to_string(),
         fields: vec![FieldInit {
             name: "host".to_string(),
-            value: Expr::StringLit("localhost".to_string()),
+            value: se(Expr::StringLit("localhost".to_string())),
             span: 0..10,
         }],
         as_interfaces: vec![],
@@ -675,7 +691,7 @@ fn test_expr_type_construction_with_as_interface() {
             interface_name: "Endpoint".to_string(),
             fields: vec![FieldInit {
                 name: "port".to_string(),
-                value: Expr::Number("8080".to_string()),
+                value: se(Expr::Number("8080".to_string())),
                 span: 0..10,
             }],
             span: 0..30,
@@ -696,7 +712,7 @@ fn test_expr_variant_construction() {
     let expr = Expr::VariantConstruction {
         type_name: "SocketAddr".to_string(),
         variant: "V4".to_string(),
-        args: vec![Expr::Ident("addr".to_string())],
+        args: vec![se(Expr::Ident("addr".to_string()))],
     };
     match expr {
         Expr::VariantConstruction {
@@ -718,7 +734,7 @@ fn test_expr_named_construction() {
         type_name: "SemVer".to_string(),
         fields: vec![FieldInit {
             name: "major".to_string(),
-            value: Expr::Number("17".to_string()),
+            value: se(Expr::Number("17".to_string())),
             span: 0..10,
         }],
     };
@@ -734,15 +750,15 @@ fn test_expr_named_construction() {
 #[test]
 fn test_expr_binary_op_construction() {
     let expr = Expr::BinaryOp {
-        left: Box::new(Expr::It),
+        left: Box::new(se(Expr::It)),
         op: BinaryOp::Gte,
-        right: Box::new(Expr::Number("15".to_string())),
+        right: Box::new(se(Expr::Number("15".to_string()))),
     };
     match expr {
         Expr::BinaryOp { left, op, right } => {
-            assert!(matches!(*left, Expr::It));
+            assert!(matches!(left.kind, Expr::It));
             assert_eq!(op, BinaryOp::Gte);
-            assert!(matches!(*right, Expr::Number(n) if n == "15"));
+            assert!(matches!(&right.kind, Expr::Number(n) if n == "15"));
         }
         other => panic!("expected BinaryOp, got {other:?}"),
     }
@@ -752,12 +768,12 @@ fn test_expr_binary_op_construction() {
 fn test_expr_unary_op_construction() {
     let expr = Expr::UnaryOp {
         op: UnaryOp::Not,
-        operand: Box::new(Expr::BoolLit(true)),
+        operand: Box::new(se(Expr::BoolLit(true))),
     };
     match expr {
         Expr::UnaryOp { op, operand } => {
             assert_eq!(op, UnaryOp::Not);
-            assert!(matches!(*operand, Expr::BoolLit(true)));
+            assert!(matches!(operand.kind, Expr::BoolLit(true)));
         }
         other => panic!("expected UnaryOp, got {other:?}"),
     }
@@ -803,7 +819,7 @@ fn test_unary_op_equality() {
 fn test_field_init_construction() {
     let fi = FieldInit {
         name: "port".to_string(),
-        value: Expr::Number("8080".to_string()),
+        value: se(Expr::Number("8080".to_string())),
         span: 0..10,
     };
     assert_eq!(fi.name, "port");
@@ -831,13 +847,13 @@ fn test_interface_def_with_fields() {
         fields: vec![
             InterfaceField {
                 name: "host".to_string(),
-                ty: TypeExpr::Primitive(PrimitiveType::String),
+                ty: st(TypeExpr::Primitive(PrimitiveType::String)),
                 attributes: vec![],
                 span: 0..10,
             },
             InterfaceField {
                 name: "port".to_string(),
-                ty: TypeExpr::Primitive(PrimitiveType::Number),
+                ty: st(TypeExpr::Primitive(PrimitiveType::Number)),
                 attributes: vec![Attribute {
                     name: "default".to_string(),
                     args: Some("5432".to_string()),
@@ -863,7 +879,7 @@ fn test_interface_def_with_type_params() {
         type_params: vec!["T".to_string()],
         fields: vec![InterfaceField {
             name: "items".to_string(),
-            ty: TypeExpr::Named("T".to_string()),
+            ty: st(TypeExpr::Named("T".to_string())),
             attributes: vec![],
             span: 0..10,
         }],
@@ -891,21 +907,21 @@ fn test_impl_block_with_mappings() {
         mappings: vec![
             FieldMapping {
                 name: "host".to_string(),
-                value: Expr::FieldAccess {
-                    object: Box::new(Expr::Self_),
+                value: se(Expr::FieldAccess {
+                    object: Box::new(se(Expr::Self_)),
                     field: "hostname".to_string(),
-                },
+                }),
                 span: 0..20,
             },
             FieldMapping {
                 name: "port".to_string(),
-                value: Expr::FieldAccess {
-                    object: Box::new(Expr::FieldAccess {
-                        object: Box::new(Expr::Self_),
+                value: se(Expr::FieldAccess {
+                    object: Box::new(se(Expr::FieldAccess {
+                        object: Box::new(se(Expr::Self_)),
                         field: "config".to_string(),
-                    }),
+                    })),
                     field: "port".to_string(),
-                },
+                }),
                 span: 21..50,
             },
         ],
@@ -923,7 +939,7 @@ fn test_item_let_binding_variant() {
     let item = Item::LetBinding(LetBinding {
         name: "proxy".to_string(),
         ty: None,
-        value: Expr::StringLit("hello".to_string()),
+        value: se(Expr::StringLit("hello".to_string())),
         span: 0..20,
     });
     assert!(matches!(item, Item::LetBinding(_)));
@@ -933,13 +949,13 @@ fn test_item_let_binding_variant() {
 fn test_let_binding_with_type_annotation() {
     let binding = LetBinding {
         name: "port".to_string(),
-        ty: Some(TypeExpr::Primitive(PrimitiveType::Number)),
-        value: Expr::Number("5432".to_string()),
+        ty: Some(st(TypeExpr::Primitive(PrimitiveType::Number))),
+        value: se(Expr::Number("5432".to_string())),
         span: 0..20,
     };
     assert_eq!(binding.name, "port");
     assert!(binding.ty.is_some());
-    match binding.ty.unwrap() {
+    match binding.ty.unwrap().kind {
         TypeExpr::Primitive(PrimitiveType::Number) => {}
         other => panic!("expected Primitive(Number), got {other:?}"),
     }
@@ -950,7 +966,7 @@ fn test_let_binding_without_type_annotation() {
     let binding = LetBinding {
         name: "name".to_string(),
         ty: None,
-        value: Expr::StringLit("hello".to_string()),
+        value: se(Expr::StringLit("hello".to_string())),
         span: 0..20,
     };
     assert!(binding.ty.is_none());
@@ -960,10 +976,10 @@ fn test_let_binding_without_type_annotation() {
 fn test_field_mapping_construction() {
     let mapping = FieldMapping {
         name: "listen_on".to_string(),
-        value: Expr::FieldAccess {
-            object: Box::new(Expr::Self_),
+        value: se(Expr::FieldAccess {
+            object: Box::new(se(Expr::Self_)),
             field: "listen_on".to_string(),
-        },
+        }),
         span: 0..30,
     };
     assert_eq!(mapping.name, "listen_on");
@@ -1022,7 +1038,7 @@ fn test_parse_interface_with_generic() {
 fn test_interface_field_construction() {
     let field = InterfaceField {
         name: "host".to_string(),
-        ty: TypeExpr::Primitive(PrimitiveType::String),
+        ty: st(TypeExpr::Primitive(PrimitiveType::String)),
         attributes: vec![Attribute {
             name: "default".to_string(),
             args: Some("\"localhost\"".to_string()),
@@ -1067,7 +1083,7 @@ fn test_parse_impl_block_with_expression() {
     match &module.items[0] {
         Item::ImplBlock(i) => {
             assert_eq!(i.mappings.len(), 1);
-            assert!(matches!(&i.mappings[0].value, Expr::StringLit(s) if s == "hello"));
+            assert!(matches!(&i.mappings[0].value.kind, Expr::StringLit(s) if s == "hello"));
         }
         other => panic!("expected ImplBlock, got {other:?}"),
     }
@@ -1086,7 +1102,7 @@ fn test_parse_as_interface_in_construction() {
         }
     };
     match &module.items[0] {
-        Item::LetBinding(l) => match &l.value {
+        Item::LetBinding(l) => match &l.value.kind {
             Expr::TypeConstruction {
                 type_name,
                 fields,
@@ -1113,7 +1129,7 @@ fn test_parse_plain_string_no_interpolation() {
     let module = spin! { let x = "hello world" };
     match &module.items[0] {
         Item::LetBinding(l) => {
-            assert!(matches!(&l.value, Expr::StringLit(s) if s == "hello world"));
+            assert!(matches!(&l.value.kind, Expr::StringLit(s) if s == "hello world"));
         }
         other => panic!("expected LetBinding, got {other:?}"),
     }
@@ -1123,11 +1139,13 @@ fn test_parse_plain_string_no_interpolation() {
 fn test_parse_string_interpolation_simple() {
     let module = spin! { let x = "hello ${name}" };
     match &module.items[0] {
-        Item::LetBinding(l) => match &l.value {
+        Item::LetBinding(l) => match &l.value.kind {
             Expr::StringInterpolation(parts) => {
                 assert_eq!(parts.len(), 2);
                 assert!(matches!(&parts[0], StringPart::Literal(s) if s == "hello "));
-                assert!(matches!(&parts[1], StringPart::Expr(Expr::Ident(n)) if n == "name"));
+                assert!(
+                    matches!(&parts[1], StringPart::Expr(SpannedExpr { kind: Expr::Ident(n), .. }) if n == "name")
+                );
             }
             other => panic!("expected StringInterpolation, got {other:?}"),
         },
@@ -1139,12 +1157,15 @@ fn test_parse_string_interpolation_simple() {
 fn test_parse_string_interpolation_dotted_path() {
     let module = spin! { let x = "host: ${postgres.host}" };
     match &module.items[0] {
-        Item::LetBinding(l) => match &l.value {
+        Item::LetBinding(l) => match &l.value.kind {
             Expr::StringInterpolation(parts) => {
                 assert_eq!(parts.len(), 2);
                 assert!(matches!(&parts[0], StringPart::Literal(s) if s == "host: "));
                 match &parts[1] {
-                    StringPart::Expr(Expr::FieldAccess { field, .. }) => {
+                    StringPart::Expr(SpannedExpr {
+                        kind: Expr::FieldAccess { field, .. },
+                        ..
+                    }) => {
                         assert_eq!(field, "host");
                     }
                     other => panic!("expected FieldAccess, got {other:?}"),
@@ -1160,12 +1181,16 @@ fn test_parse_string_interpolation_dotted_path() {
 fn test_parse_string_multiple_interpolations() {
     let module = spin! { let x = "${host}:${port}" };
     match &module.items[0] {
-        Item::LetBinding(l) => match &l.value {
+        Item::LetBinding(l) => match &l.value.kind {
             Expr::StringInterpolation(parts) => {
                 assert_eq!(parts.len(), 3);
-                assert!(matches!(&parts[0], StringPart::Expr(Expr::Ident(n)) if n == "host"));
+                assert!(
+                    matches!(&parts[0], StringPart::Expr(SpannedExpr { kind: Expr::Ident(n), .. }) if n == "host")
+                );
                 assert!(matches!(&parts[1], StringPart::Literal(s) if s == ":"));
-                assert!(matches!(&parts[2], StringPart::Expr(Expr::Ident(n)) if n == "port"));
+                assert!(
+                    matches!(&parts[2], StringPart::Expr(SpannedExpr { kind: Expr::Ident(n), .. }) if n == "port")
+                );
             }
             other => panic!("expected StringInterpolation, got {other:?}"),
         },
@@ -1177,10 +1202,12 @@ fn test_parse_string_multiple_interpolations() {
 fn test_parse_string_interpolation_trailing_literal() {
     let module = spin! { let x = "${name}!" };
     match &module.items[0] {
-        Item::LetBinding(l) => match &l.value {
+        Item::LetBinding(l) => match &l.value.kind {
             Expr::StringInterpolation(parts) => {
                 assert_eq!(parts.len(), 2);
-                assert!(matches!(&parts[0], StringPart::Expr(Expr::Ident(n)) if n == "name"));
+                assert!(
+                    matches!(&parts[0], StringPart::Expr(SpannedExpr { kind: Expr::Ident(n), .. }) if n == "name")
+                );
                 assert!(matches!(&parts[1], StringPart::Literal(s) if s == "!"));
             }
             other => panic!("expected StringInterpolation, got {other:?}"),
@@ -1193,19 +1220,22 @@ fn test_parse_string_interpolation_trailing_literal() {
 fn test_parse_string_interpolation_deep_dotted_path() {
     let module = spin! { let x = "${a.b.c}" };
     match &module.items[0] {
-        Item::LetBinding(l) => match &l.value {
+        Item::LetBinding(l) => match &l.value.kind {
             Expr::StringInterpolation(parts) => {
                 assert_eq!(parts.len(), 1);
                 match &parts[0] {
-                    StringPart::Expr(Expr::FieldAccess { object, field }) => {
+                    StringPart::Expr(SpannedExpr {
+                        kind: Expr::FieldAccess { object, field },
+                        ..
+                    }) => {
                         assert_eq!(field, "c");
-                        match object.as_ref() {
+                        match &object.kind {
                             Expr::FieldAccess {
                                 object: inner,
                                 field: mid,
                             } => {
                                 assert_eq!(mid, "b");
-                                assert!(matches!(inner.as_ref(), Expr::Ident(n) if n == "a"));
+                                assert!(matches!(&inner.kind, Expr::Ident(n) if n == "a"));
                             }
                             other => panic!("expected nested FieldAccess, got {other:?}"),
                         }
@@ -1227,12 +1257,12 @@ fn test_parse_string_interpolation_deep_dotted_path() {
 fn test_parse_list_literal() {
     let module = parse("let xs = #[1, 2, 3]").unwrap();
     match &module.items[0] {
-        Item::LetBinding(l) => match &l.value {
+        Item::LetBinding(l) => match &l.value.kind {
             Expr::ListLit(items) => {
                 assert_eq!(items.len(), 3);
-                assert!(matches!(&items[0], Expr::Number(n) if n == "1"));
-                assert!(matches!(&items[1], Expr::Number(n) if n == "2"));
-                assert!(matches!(&items[2], Expr::Number(n) if n == "3"));
+                assert!(matches!(&items[0].kind, Expr::Number(n) if n == "1"));
+                assert!(matches!(&items[1].kind, Expr::Number(n) if n == "2"));
+                assert!(matches!(&items[2].kind, Expr::Number(n) if n == "3"));
             }
             other => panic!("expected ListLit, got {other:?}"),
         },
@@ -1244,7 +1274,7 @@ fn test_parse_list_literal() {
 fn test_parse_empty_list_literal() {
     let module = parse("let xs = #[]").unwrap();
     match &module.items[0] {
-        Item::LetBinding(l) => match &l.value {
+        Item::LetBinding(l) => match &l.value.kind {
             Expr::ListLit(items) => {
                 assert!(items.is_empty());
             }
@@ -1258,11 +1288,11 @@ fn test_parse_empty_list_literal() {
 fn test_parse_list_literal_with_strings() {
     let module = parse(r#"let xs = #["a", "b"]"#).unwrap();
     match &module.items[0] {
-        Item::LetBinding(l) => match &l.value {
+        Item::LetBinding(l) => match &l.value.kind {
             Expr::ListLit(items) => {
                 assert_eq!(items.len(), 2);
-                assert!(matches!(&items[0], Expr::StringLit(s) if s == "a"));
-                assert!(matches!(&items[1], Expr::StringLit(s) if s == "b"));
+                assert!(matches!(&items[0].kind, Expr::StringLit(s) if s == "a"));
+                assert!(matches!(&items[1].kind, Expr::StringLit(s) if s == "b"));
             }
             other => panic!("expected ListLit, got {other:?}"),
         },
@@ -1278,7 +1308,7 @@ fn test_parse_regex_literal_in_let() {
     let module = parse(source).unwrap();
     match &module.items[0] {
         Item::LetBinding(l) => {
-            assert!(matches!(&l.value, Expr::RegexLit(p) if p == r"\.zone1$"));
+            assert!(matches!(&l.value.kind, Expr::RegexLit(p) if p == r"\.zone1$"));
         }
         other => panic!("expected LetBinding, got {other:?}"),
     }
@@ -1294,7 +1324,7 @@ fn test_parse_number_primitive_type() {
     match &module.items[0] {
         Item::RecordDef(r) => {
             assert!(matches!(
-                &r.fields[0].ty,
+                &r.fields[0].ty.kind,
                 TypeExpr::Primitive(PrimitiveType::Number)
             ));
         }
@@ -1310,7 +1340,7 @@ fn test_parse_string_primitive_type() {
     match &module.items[0] {
         Item::RecordDef(r) => {
             assert!(matches!(
-                &r.fields[0].ty,
+                &r.fields[0].ty.kind,
                 TypeExpr::Primitive(PrimitiveType::String)
             ));
         }
