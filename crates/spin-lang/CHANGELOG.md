@@ -7,15 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.2.0](https://github.com/freshtonic/spin-up/compare/spin-up-v0.1.1...spin-up-v0.2.0) - 2026-03-31
+## [0.1.0](https://github.com/freshtonic/spin-up/releases/tag/spin-lang-v0.1.0) - 2026-03-31
 
 ### Added
 
 - add span information to Expr and TypeExpr via Spanned<T> wrapper
 - add #[] #() #{} collection literals, built-in functions, =~ regex match
 - overhaul type system — 3 primitives, collections, regex, it-expressions
-- add spin-lsp language server with VSCode extension integration
-- add VSCode syntax highlighting extension for .spin files
 - add spin\! macro for inline .spin code in Rust
 - add string interpolation parsing with ${expr} support
 - add let binding redefinition type checking
@@ -26,13 +24,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - add type inference for impl RHS expressions
 - integrate miette for Rust-quality diagnostic rendering
 - wire up spin check to analysis pipeline
-- add spin check CLI subcommand
 - add dependency graph construction and cycle detection
 - add type unification engine with impl completeness checking
 - add module resolution with import checking
 - add type registry for symbol resolution
 - add diagnostic infrastructure for error collection
 - add <as Interface> block parsing in type constructions
+- add type annotation support for let bindings
 - add impl block parsing
 - add expression parser with operator precedence and let bindings
 - add interface definition parsing with field-level attributes
@@ -40,46 +38,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - add attribute argument parsing
 - add logical operators &&, ||, \! to lexer
 - add interface, impl, for, let, it keywords to lexer
-- add spin-core-net Rust types with compile-time verification
-- implement #[spin_core] proc-macro for compile-time verification
-- add AST normalization for span-independent comparison
-- embed spin-core-net.spin and integrate with module loader
-- add primitive, array, slice, tuple, and unit type parsing
-- add choice definition parsing with variants
-- add record definition parsing
-- add attribute parsing for item definitions
-- add record, choice, attribute, and extended type AST nodes
-- add attribute syntax #[...] to lexer
-- add Rust-style numeric literal lexing
-- add primitive type and record/choice keywords to lexer
 
 ### Fixed
 
 - numeric type inference returns Number instead of Unknown
-- update VSCode syntax highlighter for new type system
 
 ### Other
 
 - convert spin\! to proc-macro and migrate all tests
-- replace parse() calls with spin\! macro in tests
-- add Phase 3b implementation plan for static analysis engine
-- add Phase 3a implementation plan for language constructs
 - remove supplies keyword, replaced by impl Interface for Type
-- add static analysis design with type unification and constraint checking
-- introduce resource/workload terminology distinction
-- remove Set, Map, Mappable, Applicable from design
 - remove resource keyword, use type for all type definitions
-- gitignore ./tree-pool
 - change type syntax to = / | / ; delimiters with generic params
 - replace record/choice keywords with unified type keyword
 - extract spin-lang crate to break cyclic dependency
-- add spin-core-macros proc-macro crate to workspace
-- add Phase 2 implementation plan for spin-core primitives
-- add spin-core primitives design and reorder future phases
-
-## [0.1.1](https://github.com/freshtonic/spin-up/compare/v0.1.0...v0.1.1) - 2026-03-28
-
-### Other
-
-- cargo fmt
-- project description & repository URL

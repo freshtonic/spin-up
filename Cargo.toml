@@ -3,7 +3,7 @@ members = [".", "crates/spin-lang", "crates/spin-core-macros", "crates/spin-lsp"
 
 [package]
 name = "spin-up"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 description = "A local development orchestrator for discerning developers with impeccable taste"
 license = "MIT"
