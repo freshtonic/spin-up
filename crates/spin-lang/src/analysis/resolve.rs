@@ -117,10 +117,10 @@ fn resolve_module_recursive(
 
     let module = match parser::parse(source) {
         Ok(m) => m,
-        Err(_e) => {
+        Err(e) => {
             ctx.diagnostics.error(
-                DiagnosticKind::UnresolvedImport {
-                    module: format!("parse error in module '{module_name}'"),
+                DiagnosticKind::ParseError {
+                    message: format!("{e}"),
                 },
                 0..0,
                 source_name,

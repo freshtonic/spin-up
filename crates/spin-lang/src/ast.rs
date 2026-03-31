@@ -147,11 +147,12 @@ pub enum Expr {
         fields: Vec<FieldInit>,
         as_interfaces: Vec<AsInterfaceBlock>,
     },
-    /// Variant construction: `SocketAddr::V4(...)` or `Some(x)`
+    /// Variant construction: `SocketAddr::V4(...)` or `spin-net::SocketAddr::V4(...)`
     VariantConstruction {
+        module: Option<String>,
         type_name: String,
         variant: String,
-        args: Vec<SpannedExpr>,
+        args: VariantArgs,
     },
     /// Function/variant call with named args: `SemVer(major: 17)`
     NamedConstruction {
@@ -196,6 +197,13 @@ pub struct FieldInit {
     pub name: String,
     pub value: SpannedExpr,
     pub span: Range<usize>,
+}
+
+/// Arguments to a variant constructor — either positional or named.
+#[derive(Debug, Clone)]
+pub enum VariantArgs {
+    Positional(Vec<SpannedExpr>),
+    Named(Vec<FieldInit>),
 }
 
 /// An `<as Interface> { field: value, ... }` block within a type construction

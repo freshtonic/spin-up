@@ -631,11 +631,18 @@ fn find_in_spanned_expr(expr: &SpannedExpr, name: &str, ranges: &mut Vec<std::op
                 find_in_spanned_expr(arg, name, ranges);
             }
         }
-        Expr::VariantConstruction { args, .. } => {
-            for arg in args {
-                find_in_spanned_expr(arg, name, ranges);
+        Expr::VariantConstruction { args, .. } => match args {
+            VariantArgs::Positional(exprs) => {
+                for arg in exprs {
+                    find_in_spanned_expr(arg, name, ranges);
+                }
             }
-        }
+            VariantArgs::Named(fields) => {
+                for fi in fields {
+                    find_in_spanned_expr(&fi.value, name, ranges);
+                }
+            }
+        },
         Expr::NamedConstruction { fields, .. } => {
             for fi in fields {
                 find_in_spanned_expr(&fi.value, name, ranges);

@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use crate::ast::{Expr, SpannedExpr};
+use crate::ast::{Expr, SpannedExpr, VariantArgs};
 use crate::diagnostics::{DiagnosticKind, Diagnostics};
 
 use super::registry::TypeRegistry;
@@ -97,11 +97,18 @@ fn collect_ident_refs(expr: &SpannedExpr, known: &HashSet<String>, out: &mut Has
                 }
             }
         }
-        Expr::VariantConstruction { args, .. } => {
-            for arg in args {
-                collect_ident_refs(arg, known, out);
+        Expr::VariantConstruction { args, .. } => match args {
+            VariantArgs::Positional(exprs) => {
+                for arg in exprs {
+                    collect_ident_refs(arg, known, out);
+                }
             }
-        }
+            VariantArgs::Named(fields) => {
+                for field in fields {
+                    collect_ident_refs(&field.value, known, out);
+                }
+            }
+        },
         Expr::NamedConstruction { fields, .. } => {
             for field in fields {
                 collect_ident_refs(&field.value, known, out);

@@ -83,6 +83,11 @@ pub enum DiagnosticKind {
     CircularImport {
         chain: Vec<String>,
     },
+
+    // Parse errors
+    ParseError {
+        message: String,
+    },
 }
 
 #[derive(Debug, Default)]
@@ -210,5 +215,26 @@ pub fn format_diagnostic(kind: &DiagnosticKind) -> (String, String, Option<Strin
             format!("import chain: {}", chain.join(", ")),
             None,
         ),
+        DiagnosticKind::ParseError { message } => (
+            "parse error".to_string(),
+            message.clone(),
+            Some("check the syntax of your .spin file".to_string()),
+        ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_parse_error_diagnostic() {
+        let kind = DiagnosticKind::ParseError {
+            message: "expected `;` at position 10".to_string(),
+        };
+        let (message, label, help) = format_diagnostic(&kind);
+        assert_eq!(message, "parse error");
+        assert_eq!(label, "expected `;` at position 10");
+        assert!(help.is_some());
     }
 }

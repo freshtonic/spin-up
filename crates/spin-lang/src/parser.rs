@@ -1,6 +1,6 @@
 use crate::ast::{
     AsInterfaceBlock, Attribute, BinaryOp, Expr, FieldInit, Import, Item, LetBinding, Module,
-    SpannedExpr, SpannedTypeExpr, StringPart, UnaryOp, Variant,
+    SpannedExpr, SpannedTypeExpr, StringPart, UnaryOp, Variant, VariantArgs,
 };
 use crate::lexer::{self, Spanned, Token};
 use thiserror::Error;
@@ -656,16 +656,31 @@ impl Parser {
         let (name, name_span) = self.expect_ident()?;
         let start = name_span.start;
 
-        // Ident::Variant(args) — VariantConstruction
+        // Ident::Ident — could be Type::Variant or Module::Type::Variant
         if self.check(&Token::PathSep) {
-            self.advance(); // consume '::'
-            let (variant, _) = self.expect_ident()?;
+            self.advance(); // consume first '::'
+            let (second, _) = self.expect_ident()?;
+
+            // Check for a third segment: Module::Type::Variant
+            let (module, type_name, variant) = if self.check(&Token::PathSep) {
+                self.advance(); // consume second '::'
+                let (third, _) = self.expect_ident()?;
+                (Some(name), second, third)
+            } else {
+                (None, name, second)
+            };
+
             self.expect_token(Token::LParen)?;
-            let args = self.parse_spanned_expr_list(Token::RParen)?;
+            let args = if self.is_named_arg_pattern() {
+                VariantArgs::Named(self.parse_field_init_list(Token::RParen)?)
+            } else {
+                VariantArgs::Positional(self.parse_spanned_expr_list(Token::RParen)?)
+            };
             self.expect_token(Token::RParen)?;
             return Ok(self.spanned_expr(
                 Expr::VariantConstruction {
-                    type_name: name,
+                    module,
+                    type_name,
                     variant,
                     args,
                 },
@@ -1289,7 +1304,7 @@ pub fn parse(input: &str) -> Result<Module, ParseError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{BinaryOp, Expr, Item};
+    use crate::ast::{BinaryOp, Expr, Item, VariantArgs};
 
     /// Helper: extract the Expr kind from a let binding's value.
     fn let_value(module: &Module) -> &Expr {
@@ -1566,13 +1581,18 @@ mod tests {
         let module = parse("let x = Option::Some(42)").unwrap();
         match let_value(&module) {
             Expr::VariantConstruction {
+                module: m,
                 type_name,
                 variant,
                 args,
             } => {
+                assert!(m.is_none());
                 assert_eq!(type_name, "Option");
                 assert_eq!(variant, "Some");
-                assert_eq!(args.len(), 1);
+                match args {
+                    VariantArgs::Positional(exprs) => assert_eq!(exprs.len(), 1),
+                    other => panic!("expected Positional args, got {other:?}"),
+                }
             }
             other => panic!("expected VariantConstruction, got {other:?}"),
         }
@@ -1712,6 +1732,102 @@ mod tests {
                 ));
             }
             other => panic!("expected BinaryOp, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_variant_with_named_args() {
+        let module = parse(r#"let x = Foo::Bar(name: "hello", count: 42)"#).unwrap();
+        match let_value(&module) {
+            Expr::VariantConstruction {
+                module: m,
+                type_name,
+                variant,
+                args,
+            } => {
+                assert!(m.is_none());
+                assert_eq!(type_name, "Foo");
+                assert_eq!(variant, "Bar");
+                match args {
+                    VariantArgs::Named(fields) => {
+                        assert_eq!(fields.len(), 2);
+                        assert_eq!(fields[0].name, "name");
+                        assert_eq!(fields[1].name, "count");
+                    }
+                    other => panic!("expected Named args, got {other:?}"),
+                }
+            }
+            other => panic!("expected VariantConstruction, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_variant_with_positional_args() {
+        let module = parse("let x = Option::Some(42)").unwrap();
+        match let_value(&module) {
+            Expr::VariantConstruction {
+                module: m,
+                type_name,
+                variant,
+                args,
+            } => {
+                assert!(m.is_none());
+                assert_eq!(type_name, "Option");
+                assert_eq!(variant, "Some");
+                match args {
+                    VariantArgs::Positional(exprs) => assert_eq!(exprs.len(), 1),
+                    other => panic!("expected Positional args, got {other:?}"),
+                }
+            }
+            other => panic!("expected VariantConstruction, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_module_qualified_variant() {
+        let module =
+            parse(r#"let x = my-mod::Foo::Bar(name: "hello")"#).unwrap();
+        match let_value(&module) {
+            Expr::VariantConstruction {
+                module: m,
+                type_name,
+                variant,
+                args,
+            } => {
+                assert_eq!(m.as_deref(), Some("my-mod"));
+                assert_eq!(type_name, "Foo");
+                assert_eq!(variant, "Bar");
+                match args {
+                    VariantArgs::Named(fields) => {
+                        assert_eq!(fields.len(), 1);
+                        assert_eq!(fields[0].name, "name");
+                    }
+                    other => panic!("expected Named args, got {other:?}"),
+                }
+            }
+            other => panic!("expected VariantConstruction, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_module_qualified_variant_positional() {
+        let module = parse("let x = spin-net::SocketAddr::V4(addr)").unwrap();
+        match let_value(&module) {
+            Expr::VariantConstruction {
+                module: m,
+                type_name,
+                variant,
+                args,
+            } => {
+                assert_eq!(m.as_deref(), Some("spin-net"));
+                assert_eq!(type_name, "SocketAddr");
+                assert_eq!(variant, "V4");
+                match args {
+                    VariantArgs::Positional(exprs) => assert_eq!(exprs.len(), 1),
+                    other => panic!("expected Positional args, got {other:?}"),
+                }
+            }
+            other => panic!("expected VariantConstruction, got {other:?}"),
         }
     }
 }

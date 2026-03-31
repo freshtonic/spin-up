@@ -1,7 +1,7 @@
 use spin_up::ast::{
     AsInterfaceBlock, Attribute, BinaryOp, ChoiceDef, Expr, FieldInit, FieldMapping, ImplBlock,
     InterfaceDef, InterfaceField, Item, LetBinding, PrimitiveType, RecordDef, Spanned, SpannedExpr,
-    SpannedTypeExpr, StringPart, TypeExpr, UnaryOp, Variant,
+    SpannedTypeExpr, StringPart, TypeExpr, UnaryOp, Variant, VariantArgs,
 };
 use spin_up::parser::parse;
 use spin_up::spin;
@@ -710,19 +710,25 @@ fn test_expr_type_construction_with_as_interface() {
 #[test]
 fn test_expr_variant_construction() {
     let expr = Expr::VariantConstruction {
+        module: None,
         type_name: "SocketAddr".to_string(),
         variant: "V4".to_string(),
-        args: vec![se(Expr::Ident("addr".to_string()))],
+        args: VariantArgs::Positional(vec![se(Expr::Ident("addr".to_string()))]),
     };
     match expr {
         Expr::VariantConstruction {
+            module,
             type_name,
             variant,
             args,
         } => {
+            assert!(module.is_none());
             assert_eq!(type_name, "SocketAddr");
             assert_eq!(variant, "V4");
-            assert_eq!(args.len(), 1);
+            match args {
+                VariantArgs::Positional(exprs) => assert_eq!(exprs.len(), 1),
+                other => panic!("expected Positional args, got {other:?}"),
+            }
         }
         other => panic!("expected VariantConstruction, got {other:?}"),
     }
