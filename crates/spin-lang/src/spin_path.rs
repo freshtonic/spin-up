@@ -10,8 +10,6 @@ pub enum SpinPathError {
     DirNotFound(PathBuf),
     #[error("module not found: {0}")]
     ModuleNotFound(String),
-    #[error("user-defined modules cannot use the 'spin-' prefix: {0}")]
-    ReservedPrefix(String),
     #[error("failed to read {path}: {source}")]
     ReadError {
         path: PathBuf,
@@ -66,9 +64,9 @@ impl SpinPath {
     }
 
     pub fn resolve(&self, module_name: &str) -> Result<PathBuf, SpinPathError> {
-        if module_name.starts_with("spin-") && !module_name.starts_with("spin-core") {
-            return Err(SpinPathError::ReservedPrefix(module_name.to_string()));
-        }
+        // spin-core-* modules are built-in (handled by resolve_source above).
+        // Reject only exact "spin-core" prefix on disk — all other spin-* modules
+        // (spin-net, spin-db-postgres, etc.) are resolved normally from SPIN_PATH.
 
         let filename = format!("{module_name}.spin");
         for dir in &self.dirs {

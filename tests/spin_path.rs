@@ -93,17 +93,14 @@ fn test_resolve_module_not_found() {
 }
 
 #[test]
-fn test_resolve_rejects_spin_prefix_for_user_modules() {
+fn test_resolve_spin_prefixed_modules_from_disk() {
     let tmp = TempDir::new().unwrap();
     let spin_file = tmp.path().join("spin-custom.spin");
     fs::write(&spin_file, "# placeholder").unwrap();
 
     let spin_path = SpinPath::from_str(tmp.path().to_str().unwrap()).unwrap();
     let result = spin_path.resolve("spin-custom");
-    assert!(matches!(
-        result.unwrap_err(),
-        SpinPathError::ReservedPrefix(_)
-    ));
+    assert_eq!(result.unwrap(), spin_file);
 }
 
 #[test]
