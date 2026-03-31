@@ -147,3 +147,77 @@ fn test_spin_macro_with_dotted_interpolation() {
         other => panic!("expected LetBinding, got {other:?}"),
     }
 }
+
+// --- Tests for collection literals in spin! macro ---
+
+#[test]
+fn test_spin_macro_hashmap_literal() {
+    let module = spin! {
+        let m = #{"key": "value", "other": "thing"}
+    };
+    match &module.items[0] {
+        Item::LetBinding(l) => {
+            match &l.value.kind {
+                Expr::HashMapLit(entries) => {
+                    assert_eq!(entries.len(), 2);
+                }
+                other => panic!("expected HashMapLit, got {other:?}"),
+            }
+        }
+        other => panic!("expected LetBinding, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_spin_macro_set_literal() {
+    let module = spin! {
+        let s = #("a", "b", "c")
+    };
+    match &module.items[0] {
+        Item::LetBinding(l) => {
+            match &l.value.kind {
+                Expr::SetLit(items) => {
+                    assert_eq!(items.len(), 3);
+                }
+                other => panic!("expected SetLit, got {other:?}"),
+            }
+        }
+        other => panic!("expected LetBinding, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_spin_macro_empty_hashmap() {
+    let module = spin! {
+        let m = #{}
+    };
+    match &module.items[0] {
+        Item::LetBinding(l) => {
+            match &l.value.kind {
+                Expr::HashMapLit(entries) => {
+                    assert_eq!(entries.len(), 0);
+                }
+                other => panic!("expected HashMapLit, got {other:?}"),
+            }
+        }
+        other => panic!("expected LetBinding, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_spin_macro_empty_set() {
+    let module = spin! {
+        let s = #()
+    };
+    match &module.items[0] {
+        Item::LetBinding(l) => {
+            match &l.value.kind {
+                Expr::SetLit(items) => {
+                    assert_eq!(items.len(), 0);
+                }
+                other => panic!("expected SetLit, got {other:?}"),
+            }
+        }
+        other => panic!("expected LetBinding, got {other:?}"),
+    }
+}
