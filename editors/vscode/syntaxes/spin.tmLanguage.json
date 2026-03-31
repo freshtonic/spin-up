@@ -5,6 +5,7 @@
   "patterns": [
     { "include": "#comments" },
     { "include": "#attributes" },
+    { "include": "#regex" },
     { "include": "#strings" },
     { "include": "#numbers" },
     { "include": "#keywords" },
@@ -80,27 +81,42 @@
         }
       ]
     },
+    "regex": {
+      "patterns": [
+        {
+          "name": "string.regexp.spin",
+          "begin": "r\"",
+          "end": "\"",
+          "beginCaptures": {
+            "0": { "name": "punctuation.definition.string.begin.spin" }
+          },
+          "endCaptures": {
+            "0": { "name": "punctuation.definition.string.end.spin" }
+          }
+        }
+      ]
+    },
     "numbers": {
       "patterns": [
         {
           "name": "constant.numeric.hex.spin",
-          "match": "\\b0x[0-9a-fA-F_]+(u8|u16|u32|u64|u128|i8|i16|i32|i64|i128)?\\b"
+          "match": "\\b0x[0-9a-fA-F_]+\\b"
         },
         {
           "name": "constant.numeric.binary.spin",
-          "match": "\\b0b[01_]+(u8|u16|u32|u64|u128|i8|i16|i32|i64|i128)?\\b"
+          "match": "\\b0b[01_]+\\b"
         },
         {
           "name": "constant.numeric.octal.spin",
-          "match": "\\b0o[0-7_]+(u8|u16|u32|u64|u128|i8|i16|i32|i64|i128)?\\b"
+          "match": "\\b0o[0-7_]+\\b"
         },
         {
           "name": "constant.numeric.float.spin",
-          "match": "\\b[0-9][0-9_]*\\.[0-9][0-9_]*([eE][+-]?[0-9_]+)?(f32|f64)?\\b"
+          "match": "\\b[0-9][0-9_]*\\.[0-9][0-9_]*([eE][+-]?[0-9_]+)?\\b"
         },
         {
           "name": "constant.numeric.integer.spin",
-          "match": "\\b[0-9][0-9_]*(u8|u16|u32|u64|u128|i8|i16|i32|i64|i128)?\\b"
+          "match": "\\b[0-9][0-9_]*\\b"
         }
       ]
     },
@@ -112,7 +128,7 @@
         },
         {
           "name": "keyword.other.spin",
-          "match": "\\b(import|type|interface|impl|for|let|fn|map|filter)\\b"
+          "match": "\\b(import|type|interface|impl|for|let|fn|map|keep|drop|count|sum|mean|median|min|max)\\b"
         },
         {
           "name": "variable.language.spin",
@@ -124,7 +140,7 @@
       "patterns": [
         {
           "name": "storage.type.primitive.spin",
-          "match": "\\b(bool|u8|u16|u32|u64|u128|i8|i16|i32|i64|i128|f32|f64|str)\\b"
+          "match": "\\b(bool|number|string|Set)\\b"
         }
       ]
     },
@@ -144,11 +160,15 @@
       "patterns": [
         {
           "name": "keyword.operator.comparison.spin",
-          "match": "==|!=|>=|<=|>|<"
+          "match": "=~|==|!=|>=|<=|>|<"
         },
         {
           "name": "keyword.operator.logical.spin",
           "match": "&&|\\|\\||!"
+        },
+        {
+          "name": "keyword.operator.arithmetic.spin",
+          "match": "[+\\-*/]"
         },
         {
           "name": "keyword.operator.assignment.spin",
