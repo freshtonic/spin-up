@@ -6,7 +6,7 @@ use spin_up::spin;
 #[test]
 fn test_graph_simple_dependency() {
     let module = spin! {
-        type Database = port: u16;
+        type Database = port: number;
         let db = Database { port: 5432 }
         let app = MyApp { database: db }
         type MyApp = database: Database;

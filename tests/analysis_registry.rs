@@ -3,7 +3,7 @@ use spin_up::spin;
 
 #[test]
 fn test_registry_registers_type() {
-    let module = spin! { type Foo = x: u32; };
+    let module = spin! { type Foo = x: number; };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
     assert!(registry.lookup_type("Foo").is_some());
@@ -11,7 +11,7 @@ fn test_registry_registers_type() {
 
 #[test]
 fn test_registry_registers_interface() {
-    let module = spin! { interface Bar = x: u32; };
+    let module = spin! { interface Bar = x: number; };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
     assert!(registry.lookup_interface("Bar").is_some());

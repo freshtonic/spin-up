@@ -238,7 +238,7 @@ fn test_ast_choice_def_construction() {
 fn test_ast_variant_construction() {
     let variant = Variant {
         name: "Some".to_string(),
-        fields: vec![TypeExpr::Primitive(PrimitiveType::U32)],
+        fields: vec![TypeExpr::Primitive(PrimitiveType::Number)],
         span: 0..10,
     };
     assert_eq!(variant.name, "Some");
@@ -248,72 +248,45 @@ fn test_ast_variant_construction() {
 #[test]
 fn test_ast_primitive_type_equality() {
     assert_eq!(PrimitiveType::Bool, PrimitiveType::Bool);
-    assert_eq!(PrimitiveType::U8, PrimitiveType::U8);
-    assert_eq!(PrimitiveType::U16, PrimitiveType::U16);
-    assert_eq!(PrimitiveType::U32, PrimitiveType::U32);
-    assert_eq!(PrimitiveType::U64, PrimitiveType::U64);
-    assert_eq!(PrimitiveType::U128, PrimitiveType::U128);
-    assert_eq!(PrimitiveType::I8, PrimitiveType::I8);
-    assert_eq!(PrimitiveType::I16, PrimitiveType::I16);
-    assert_eq!(PrimitiveType::I32, PrimitiveType::I32);
-    assert_eq!(PrimitiveType::I64, PrimitiveType::I64);
-    assert_eq!(PrimitiveType::I128, PrimitiveType::I128);
-    assert_eq!(PrimitiveType::F32, PrimitiveType::F32);
-    assert_eq!(PrimitiveType::F64, PrimitiveType::F64);
-    assert_eq!(PrimitiveType::Str, PrimitiveType::Str);
-    assert_ne!(PrimitiveType::U8, PrimitiveType::I8);
+    assert_eq!(PrimitiveType::Number, PrimitiveType::Number);
+    assert_eq!(PrimitiveType::String, PrimitiveType::String);
+    assert_ne!(PrimitiveType::Number, PrimitiveType::Bool);
+    assert_ne!(PrimitiveType::Number, PrimitiveType::String);
 }
 
 #[test]
 fn test_ast_type_expr_primitive() {
-    let ty = TypeExpr::Primitive(PrimitiveType::U32);
-    assert!(matches!(ty, TypeExpr::Primitive(PrimitiveType::U32)));
+    let ty = TypeExpr::Primitive(PrimitiveType::Number);
+    assert!(matches!(ty, TypeExpr::Primitive(PrimitiveType::Number)));
 }
 
 #[test]
-fn test_ast_type_expr_array() {
-    let ty = TypeExpr::Array {
-        element: Box::new(TypeExpr::Primitive(PrimitiveType::U8)),
-        size: 4,
+fn test_ast_type_expr_list() {
+    let ty = TypeExpr::List(Box::new(TypeExpr::Primitive(PrimitiveType::Number)));
+    match ty {
+        TypeExpr::List(element) => {
+            assert!(matches!(
+                *element,
+                TypeExpr::Primitive(PrimitiveType::Number)
+            ));
+        }
+        other => panic!("expected List, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_ast_type_expr_hashmap() {
+    let ty = TypeExpr::HashMap {
+        key: Box::new(TypeExpr::Primitive(PrimitiveType::String)),
+        value: Box::new(TypeExpr::Primitive(PrimitiveType::Number)),
     };
     match ty {
-        TypeExpr::Array { element, size } => {
-            assert!(matches!(*element, TypeExpr::Primitive(PrimitiveType::U8)));
-            assert_eq!(size, 4);
+        TypeExpr::HashMap { key, value } => {
+            assert!(matches!(*key, TypeExpr::Primitive(PrimitiveType::String)));
+            assert!(matches!(*value, TypeExpr::Primitive(PrimitiveType::Number)));
         }
-        other => panic!("expected Array, got {other:?}"),
+        other => panic!("expected HashMap, got {other:?}"),
     }
-}
-
-#[test]
-fn test_ast_type_expr_slice() {
-    let ty = TypeExpr::Slice(Box::new(TypeExpr::Primitive(PrimitiveType::U8)));
-    match ty {
-        TypeExpr::Slice(inner) => {
-            assert!(matches!(*inner, TypeExpr::Primitive(PrimitiveType::U8)));
-        }
-        other => panic!("expected Slice, got {other:?}"),
-    }
-}
-
-#[test]
-fn test_ast_type_expr_tuple() {
-    let ty = TypeExpr::Tuple(vec![
-        TypeExpr::Primitive(PrimitiveType::U32),
-        TypeExpr::Primitive(PrimitiveType::Str),
-    ]);
-    match ty {
-        TypeExpr::Tuple(elems) => {
-            assert_eq!(elems.len(), 2);
-        }
-        other => panic!("expected Tuple, got {other:?}"),
-    }
-}
-
-#[test]
-fn test_ast_type_expr_unit() {
-    let ty = TypeExpr::Unit;
-    assert!(matches!(ty, TypeExpr::Unit));
 }
 
 // --- Attribute arguments (Phase 3a Task 3) ---
@@ -322,7 +295,7 @@ fn test_ast_type_expr_unit() {
 fn test_parse_attribute_with_args() {
     let module = spin! {
         #[delegate(PostgresEndpoint)]
-        type Proxy = frontend: str;
+        type Proxy = frontend: string;
     };
     match &module.items[0] {
         Item::RecordDef(r) => {
@@ -338,7 +311,7 @@ fn test_parse_attribute_with_args() {
 fn test_parse_attribute_with_string_args() {
     let module = spin! {
         #[default("postgres")]
-        type Foo = name: str;
+        type Foo = name: string;
     };
     match &module.items[0] {
         Item::RecordDef(r) => {
@@ -354,7 +327,7 @@ fn test_parse_attribute_with_string_args() {
 fn test_parse_attribute_without_args() {
     let module = spin! {
         #[lang-item]
-        type Foo = name: str;
+        type Foo = name: string;
     };
     match &module.items[0] {
         Item::RecordDef(r) => {
@@ -370,7 +343,7 @@ fn test_parse_attribute_without_args() {
 fn test_parse_attribute_with_nested_parens() {
     let module = spin! {
         #[target(SocketAddr::V4(port: 5432))]
-        type Foo = name: str;
+        type Foo = name: string;
     };
     match &module.items[0] {
         Item::RecordDef(r) => {
@@ -424,7 +397,7 @@ fn test_record_def_has_attributes_field() {
 fn test_parse_attribute_on_record() {
     let module = spin! {
         #[lang-item]
-        type Postgres = port: u32;
+        type Postgres = port: number;
     };
     match &module.items[0] {
         Item::RecordDef(r) => {
@@ -458,8 +431,8 @@ fn test_parse_multiple_attributes() {
 fn test_parse_record_def() {
     let module = spin! {
         type Tls =
-            port: u16,
-            key: str,
+            port: number,
+            key: string,
         ;
     };
     assert_eq!(module.items.len(), 1);
@@ -479,7 +452,7 @@ fn test_parse_record_with_attribute() {
     let module = spin! {
         #[lang-item]
         type Tls =
-            port: u16,
+            port: number,
         ;
     };
     match &module.items[0] {
@@ -555,7 +528,7 @@ fn test_parse_choice_with_attribute() {
 
 #[test]
 fn test_parse_choice_multi_field_variant() {
-    let module = spin! { type Pair = Both(u32, str) | Neither; };
+    let module = spin! { type Pair = Both(number, string) | Neither; };
     match &module.items[0] {
         Item::ChoiceDef(c) => {
             assert_eq!(c.variants[0].name, "Both");
@@ -569,12 +542,12 @@ fn test_parse_choice_multi_field_variant() {
 
 #[test]
 fn test_parse_primitive_type_in_field() {
-    let module = spin! { type Foo = x: u32, y: bool, z: str; };
+    let module = spin! { type Foo = x: number, y: bool, z: string; };
     match &module.items[0] {
         Item::RecordDef(r) => {
             assert!(matches!(
                 &r.fields[0].ty,
-                TypeExpr::Primitive(PrimitiveType::U32)
+                TypeExpr::Primitive(PrimitiveType::Number)
             ));
             assert!(matches!(
                 &r.fields[1].ty,
@@ -582,7 +555,7 @@ fn test_parse_primitive_type_in_field() {
             ));
             assert!(matches!(
                 &r.fields[2].ty,
-                TypeExpr::Primitive(PrimitiveType::Str)
+                TypeExpr::Primitive(PrimitiveType::String)
             ));
         }
         other => panic!("expected RecordDef, got {other:?}"),
@@ -590,69 +563,39 @@ fn test_parse_primitive_type_in_field() {
 }
 
 #[test]
-fn test_parse_array_type() {
-    let module = spin! { type Foo = data: [u8; 4]; };
+fn test_parse_list_type() {
+    let module = spin! { type Foo = data: [number]; };
     match &module.items[0] {
         Item::RecordDef(r) => match &r.fields[0].ty {
-            TypeExpr::Array { element, size } => {
+            TypeExpr::List(element) => {
                 assert!(matches!(
                     element.as_ref(),
-                    TypeExpr::Primitive(PrimitiveType::U8)
+                    TypeExpr::Primitive(PrimitiveType::Number)
                 ));
-                assert_eq!(*size, 4);
             }
-            other => panic!("expected Array, got {other:?}"),
+            other => panic!("expected List, got {other:?}"),
         },
         other => panic!("expected RecordDef, got {other:?}"),
     }
 }
 
 #[test]
-fn test_parse_slice_type() {
-    let module = spin! { type Foo = data: [u8]; };
+fn test_parse_hashmap_type() {
+    let module = parse("type Foo = data: {string: number};").unwrap();
     match &module.items[0] {
         Item::RecordDef(r) => match &r.fields[0].ty {
-            TypeExpr::Slice(element) => {
+            TypeExpr::HashMap { key, value } => {
                 assert!(matches!(
-                    element.as_ref(),
-                    TypeExpr::Primitive(PrimitiveType::U8)
+                    key.as_ref(),
+                    TypeExpr::Primitive(PrimitiveType::String)
+                ));
+                assert!(matches!(
+                    value.as_ref(),
+                    TypeExpr::Primitive(PrimitiveType::Number)
                 ));
             }
-            other => panic!("expected Slice, got {other:?}"),
+            other => panic!("expected HashMap, got {other:?}"),
         },
-        other => panic!("expected RecordDef, got {other:?}"),
-    }
-}
-
-#[test]
-fn test_parse_tuple_type() {
-    let module = spin! { type Foo = pair: (u32, str); };
-    match &module.items[0] {
-        Item::RecordDef(r) => match &r.fields[0].ty {
-            TypeExpr::Tuple(elements) => {
-                assert_eq!(elements.len(), 2);
-                assert!(matches!(
-                    &elements[0],
-                    TypeExpr::Primitive(PrimitiveType::U32)
-                ));
-                assert!(matches!(
-                    &elements[1],
-                    TypeExpr::Primitive(PrimitiveType::Str)
-                ));
-            }
-            other => panic!("expected Tuple, got {other:?}"),
-        },
-        other => panic!("expected RecordDef, got {other:?}"),
-    }
-}
-
-#[test]
-fn test_parse_unit_type() {
-    let module = spin! { type Foo = nothing: (); };
-    match &module.items[0] {
-        Item::RecordDef(r) => {
-            assert!(matches!(&r.fields[0].ty, TypeExpr::Unit));
-        }
         other => panic!("expected RecordDef, got {other:?}"),
     }
 }
@@ -888,13 +831,13 @@ fn test_interface_def_with_fields() {
         fields: vec![
             InterfaceField {
                 name: "host".to_string(),
-                ty: TypeExpr::Primitive(PrimitiveType::Str),
+                ty: TypeExpr::Primitive(PrimitiveType::String),
                 attributes: vec![],
                 span: 0..10,
             },
             InterfaceField {
                 name: "port".to_string(),
-                ty: TypeExpr::Primitive(PrimitiveType::U16),
+                ty: TypeExpr::Primitive(PrimitiveType::Number),
                 attributes: vec![Attribute {
                     name: "default".to_string(),
                     args: Some("5432".to_string()),
@@ -990,15 +933,15 @@ fn test_item_let_binding_variant() {
 fn test_let_binding_with_type_annotation() {
     let binding = LetBinding {
         name: "port".to_string(),
-        ty: Some(TypeExpr::Primitive(PrimitiveType::U16)),
+        ty: Some(TypeExpr::Primitive(PrimitiveType::Number)),
         value: Expr::Number("5432".to_string()),
         span: 0..20,
     };
     assert_eq!(binding.name, "port");
     assert!(binding.ty.is_some());
     match binding.ty.unwrap() {
-        TypeExpr::Primitive(PrimitiveType::U16) => {}
-        other => panic!("expected Primitive(U16), got {other:?}"),
+        TypeExpr::Primitive(PrimitiveType::Number) => {}
+        other => panic!("expected Primitive(Number), got {other:?}"),
     }
 }
 
@@ -1031,7 +974,7 @@ fn test_field_mapping_construction() {
 
 #[test]
 fn test_parse_interface_def() {
-    let module = spin! { interface Endpoint = host: str, port: u16; };
+    let module = spin! { interface Endpoint = host: string, port: number; };
     assert_eq!(module.items.len(), 1);
     match &module.items[0] {
         Item::InterfaceDef(i) => {
@@ -1049,8 +992,8 @@ fn test_parse_interface_with_field_attributes() {
     let module = spin! {
         interface Endpoint =
             #[default("localhost")]
-            host: str,
-            port: u16,
+            host: string,
+            port: number,
         ;
     };
     match &module.items[0] {
@@ -1079,7 +1022,7 @@ fn test_parse_interface_with_generic() {
 fn test_interface_field_construction() {
     let field = InterfaceField {
         name: "host".to_string(),
-        ty: TypeExpr::Primitive(PrimitiveType::Str),
+        ty: TypeExpr::Primitive(PrimitiveType::String),
         attributes: vec![Attribute {
             name: "default".to_string(),
             args: Some("\"localhost\"".to_string()),
@@ -1273,5 +1216,108 @@ fn test_parse_string_interpolation_deep_dotted_path() {
             other => panic!("expected StringInterpolation, got {other:?}"),
         },
         other => panic!("expected LetBinding, got {other:?}"),
+    }
+}
+
+// --- List literal parsing in expression context ---
+
+#[test]
+fn test_parse_list_literal() {
+    let module = spin! {
+        let xs = [1, 2, 3]
+    };
+    match &module.items[0] {
+        Item::LetBinding(l) => match &l.value {
+            Expr::ListLit(items) => {
+                assert_eq!(items.len(), 3);
+                assert!(matches!(&items[0], Expr::Number(n) if n == "1"));
+                assert!(matches!(&items[1], Expr::Number(n) if n == "2"));
+                assert!(matches!(&items[2], Expr::Number(n) if n == "3"));
+            }
+            other => panic!("expected ListLit, got {other:?}"),
+        },
+        other => panic!("expected LetBinding, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_empty_list_literal() {
+    let module = spin! {
+        let xs = []
+    };
+    match &module.items[0] {
+        Item::LetBinding(l) => match &l.value {
+            Expr::ListLit(items) => {
+                assert!(items.is_empty());
+            }
+            other => panic!("expected ListLit, got {other:?}"),
+        },
+        other => panic!("expected LetBinding, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_list_literal_with_strings() {
+    let module = spin! {
+        let xs = ["a", "b"]
+    };
+    match &module.items[0] {
+        Item::LetBinding(l) => match &l.value {
+            Expr::ListLit(items) => {
+                assert_eq!(items.len(), 2);
+                assert!(matches!(&items[0], Expr::StringLit(s) if s == "a"));
+                assert!(matches!(&items[1], Expr::StringLit(s) if s == "b"));
+            }
+            other => panic!("expected ListLit, got {other:?}"),
+        },
+        other => panic!("expected LetBinding, got {other:?}"),
+    }
+}
+
+// --- Regex literal parsing in expression context ---
+
+#[test]
+fn test_parse_regex_literal_in_let() {
+    let source = r#"let pattern = r"\.zone1$""#;
+    let module = parse(source).unwrap();
+    match &module.items[0] {
+        Item::LetBinding(l) => {
+            assert!(matches!(&l.value, Expr::RegexLit(p) if p == r"\.zone1$"));
+        }
+        other => panic!("expected LetBinding, got {other:?}"),
+    }
+}
+
+// --- Individual primitive type parsing tests ---
+
+#[test]
+fn test_parse_number_primitive_type() {
+    let module = spin! {
+        type Foo = count: number;
+    };
+    match &module.items[0] {
+        Item::RecordDef(r) => {
+            assert!(matches!(
+                &r.fields[0].ty,
+                TypeExpr::Primitive(PrimitiveType::Number)
+            ));
+        }
+        other => panic!("expected RecordDef, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_parse_string_primitive_type() {
+    let module = spin! {
+        type Foo = name: string;
+    };
+    match &module.items[0] {
+        Item::RecordDef(r) => {
+            assert!(matches!(
+                &r.fields[0].ty,
+                TypeExpr::Primitive(PrimitiveType::String)
+            ));
+        }
+        other => panic!("expected RecordDef, got {other:?}"),
     }
 }

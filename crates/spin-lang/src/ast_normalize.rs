@@ -54,13 +54,11 @@ pub enum NormalizedTypeExpr {
         args: Vec<NormalizedTypeExpr>,
     },
     SelfPath(String),
-    Array {
-        element: Box<NormalizedTypeExpr>,
-        size: usize,
+    List(Box<NormalizedTypeExpr>),
+    HashMap {
+        key: Box<NormalizedTypeExpr>,
+        value: Box<NormalizedTypeExpr>,
     },
-    Slice(Box<NormalizedTypeExpr>),
-    Tuple(Vec<NormalizedTypeExpr>),
-    Unit,
 }
 
 /// Normalize an AST item by stripping all span information for structural comparison.
@@ -132,16 +130,12 @@ fn normalize_type_expr(ty: &ast::TypeExpr) -> NormalizedTypeExpr {
             args: args.iter().map(normalize_type_expr).collect(),
         },
         ast::TypeExpr::SelfPath(name) => NormalizedTypeExpr::SelfPath(name.clone()),
-        ast::TypeExpr::Array { element, size } => NormalizedTypeExpr::Array {
-            element: Box::new(normalize_type_expr(element)),
-            size: *size,
+        ast::TypeExpr::List(element) => {
+            NormalizedTypeExpr::List(Box::new(normalize_type_expr(element)))
+        }
+        ast::TypeExpr::HashMap { key, value } => NormalizedTypeExpr::HashMap {
+            key: Box::new(normalize_type_expr(key)),
+            value: Box::new(normalize_type_expr(value)),
         },
-        ast::TypeExpr::Slice(inner) => {
-            NormalizedTypeExpr::Slice(Box::new(normalize_type_expr(inner)))
-        }
-        ast::TypeExpr::Tuple(elements) => {
-            NormalizedTypeExpr::Tuple(elements.iter().map(normalize_type_expr).collect())
-        }
-        ast::TypeExpr::Unit => NormalizedTypeExpr::Unit,
     }
 }

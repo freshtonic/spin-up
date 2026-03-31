@@ -45,26 +45,21 @@ pub fn type_expr_to_type_info(ty: &TypeExpr) -> TypeInfo {
         },
         TypeExpr::Path { module, name } => TypeInfo::Named(format!("{module}::{name}")),
         TypeExpr::SelfPath(name) => TypeInfo::Named(format!("Self::{name}")),
-        TypeExpr::Array { element, .. } => {
-            // Simplify: represent as a named wrapper
+        TypeExpr::List(element) => {
             let inner = type_expr_to_type_info(element);
             TypeInfo::Generic {
-                name: "Array".to_string(),
+                name: "List".to_string(),
                 args: vec![inner],
             }
         }
-        TypeExpr::Slice(element) => {
-            let inner = type_expr_to_type_info(element);
+        TypeExpr::HashMap { key, value } => {
+            let key_info = type_expr_to_type_info(key);
+            let value_info = type_expr_to_type_info(value);
             TypeInfo::Generic {
-                name: "Slice".to_string(),
-                args: vec![inner],
+                name: "HashMap".to_string(),
+                args: vec![key_info, value_info],
             }
         }
-        TypeExpr::Tuple(elements) => TypeInfo::Generic {
-            name: "Tuple".to_string(),
-            args: elements.iter().map(type_expr_to_type_info).collect(),
-        },
-        TypeExpr::Unit => TypeInfo::Primitive(PrimitiveType::Bool), // placeholder
     }
 }
 
@@ -76,7 +71,7 @@ pub fn infer_expr_type(expr: &Expr, impl_type_name: &str, registry: &TypeRegistr
         Expr::Self_ => TypeInfo::Named(impl_type_name.to_string()),
 
         Expr::StringLit(_) | Expr::StringInterpolation(_) => {
-            TypeInfo::Primitive(PrimitiveType::Str)
+            TypeInfo::Primitive(PrimitiveType::String)
         }
 
         Expr::BoolLit(_) => TypeInfo::Primitive(PrimitiveType::Bool),
@@ -171,18 +166,7 @@ pub fn types_compatible(expected: &TypeInfo, actual: &TypeInfo) -> bool {
 fn primitive_name(p: &PrimitiveType) -> &'static str {
     match p {
         PrimitiveType::Bool => "bool",
-        PrimitiveType::U8 => "u8",
-        PrimitiveType::U16 => "u16",
-        PrimitiveType::U32 => "u32",
-        PrimitiveType::U64 => "u64",
-        PrimitiveType::U128 => "u128",
-        PrimitiveType::I8 => "i8",
-        PrimitiveType::I16 => "i16",
-        PrimitiveType::I32 => "i32",
-        PrimitiveType::I64 => "i64",
-        PrimitiveType::I128 => "i128",
-        PrimitiveType::F32 => "f32",
-        PrimitiveType::F64 => "f64",
-        PrimitiveType::Str => "str",
+        PrimitiveType::Number => "number",
+        PrimitiveType::String => "string",
     }
 }

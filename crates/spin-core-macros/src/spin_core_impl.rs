@@ -50,37 +50,28 @@ fn rust_type_to_normalized(ty: &Type) -> Result<NormalizedTypeExpr, String> {
             let name = seg.ident.to_string();
             match name.as_str() {
                 "bool" => Ok(NormalizedTypeExpr::Primitive(ast::PrimitiveType::Bool)),
-                "u8" => Ok(NormalizedTypeExpr::Primitive(ast::PrimitiveType::U8)),
-                "u16" => Ok(NormalizedTypeExpr::Primitive(ast::PrimitiveType::U16)),
-                "u32" => Ok(NormalizedTypeExpr::Primitive(ast::PrimitiveType::U32)),
-                "u64" => Ok(NormalizedTypeExpr::Primitive(ast::PrimitiveType::U64)),
-                "u128" => Ok(NormalizedTypeExpr::Primitive(ast::PrimitiveType::U128)),
-                "i8" => Ok(NormalizedTypeExpr::Primitive(ast::PrimitiveType::I8)),
-                "i16" => Ok(NormalizedTypeExpr::Primitive(ast::PrimitiveType::I16)),
-                "i32" => Ok(NormalizedTypeExpr::Primitive(ast::PrimitiveType::I32)),
-                "i64" => Ok(NormalizedTypeExpr::Primitive(ast::PrimitiveType::I64)),
-                "i128" => Ok(NormalizedTypeExpr::Primitive(ast::PrimitiveType::I128)),
-                "f32" => Ok(NormalizedTypeExpr::Primitive(ast::PrimitiveType::F32)),
-                "f64" => Ok(NormalizedTypeExpr::Primitive(ast::PrimitiveType::F64)),
-                "str" => Ok(NormalizedTypeExpr::Primitive(ast::PrimitiveType::Str)),
+                "f64" => Ok(NormalizedTypeExpr::Primitive(ast::PrimitiveType::Number)),
+                "String" => Ok(NormalizedTypeExpr::Primitive(ast::PrimitiveType::String)),
+                "Vec" => {
+                    // Extract the generic argument: Vec<T>
+                    match &seg.arguments {
+                        syn::PathArguments::AngleBracketed(args) => {
+                            if args.args.len() != 1 {
+                                return Err("Vec must have exactly one type argument".to_string());
+                            }
+                            match &args.args[0] {
+                                syn::GenericArgument::Type(inner_ty) => {
+                                    let inner = rust_type_to_normalized(inner_ty)?;
+                                    Ok(NormalizedTypeExpr::List(Box::new(inner)))
+                                }
+                                _ => Err("Vec argument must be a type".to_string()),
+                            }
+                        }
+                        _ => Err("Vec must have angle-bracketed arguments".to_string()),
+                    }
+                }
                 other => Ok(NormalizedTypeExpr::Named(other.to_string())),
             }
-        }
-        Type::Array(array) => {
-            let element = rust_type_to_normalized(&array.elem)?;
-            let size = match &array.len {
-                syn::Expr::Lit(expr_lit) => match &expr_lit.lit {
-                    syn::Lit::Int(lit_int) => lit_int
-                        .base10_parse::<usize>()
-                        .map_err(|e| format!("invalid array size: {e}"))?,
-                    _ => return Err("array size must be an integer literal".to_string()),
-                },
-                _ => return Err("array size must be a literal expression".to_string()),
-            };
-            Ok(NormalizedTypeExpr::Array {
-                element: Box::new(element),
-                size,
-            })
         }
         _ => Err(format!("unsupported Rust type: {}", quote!(#ty))),
     }
@@ -324,32 +315,12 @@ mod tests {
     // --- Tests for rust_type_to_normalized ---
 
     #[test]
-    fn rust_type_converts_u8() {
-        let ty: Type = syn::parse2(quote! { u8 }).unwrap();
+    fn rust_type_converts_f64_to_number() {
+        let ty: Type = syn::parse2(quote! { f64 }).unwrap();
         let result = rust_type_to_normalized(&ty).unwrap();
         assert_eq!(
             result,
-            NormalizedTypeExpr::Primitive(ast::PrimitiveType::U8)
-        );
-    }
-
-    #[test]
-    fn rust_type_converts_u16() {
-        let ty: Type = syn::parse2(quote! { u16 }).unwrap();
-        let result = rust_type_to_normalized(&ty).unwrap();
-        assert_eq!(
-            result,
-            NormalizedTypeExpr::Primitive(ast::PrimitiveType::U16)
-        );
-    }
-
-    #[test]
-    fn rust_type_converts_u32() {
-        let ty: Type = syn::parse2(quote! { u32 }).unwrap();
-        let result = rust_type_to_normalized(&ty).unwrap();
-        assert_eq!(
-            result,
-            NormalizedTypeExpr::Primitive(ast::PrimitiveType::U32)
+            NormalizedTypeExpr::Primitive(ast::PrimitiveType::Number)
         );
     }
 
@@ -371,28 +342,14 @@ mod tests {
     }
 
     #[test]
-    fn rust_type_converts_array() {
-        let ty: Type = syn::parse2(quote! { [u8; 4] }).unwrap();
+    fn rust_type_converts_vec_to_list() {
+        let ty: Type = syn::parse2(quote! { Vec<f64> }).unwrap();
         let result = rust_type_to_normalized(&ty).unwrap();
         assert_eq!(
             result,
-            NormalizedTypeExpr::Array {
-                element: Box::new(NormalizedTypeExpr::Primitive(ast::PrimitiveType::U8)),
-                size: 4,
-            }
-        );
-    }
-
-    #[test]
-    fn rust_type_converts_array_size_16() {
-        let ty: Type = syn::parse2(quote! { [u8; 16] }).unwrap();
-        let result = rust_type_to_normalized(&ty).unwrap();
-        assert_eq!(
-            result,
-            NormalizedTypeExpr::Array {
-                element: Box::new(NormalizedTypeExpr::Primitive(ast::PrimitiveType::U8)),
-                size: 16,
-            }
+            NormalizedTypeExpr::List(Box::new(NormalizedTypeExpr::Primitive(
+                ast::PrimitiveType::Number
+            )))
         );
     }
 
@@ -402,7 +359,7 @@ mod tests {
     fn struct_to_normalized_simple_record() {
         let item: syn::ItemStruct = syn::parse2(quote! {
             pub struct IpAddrV4 {
-                pub octets: [u8; 4],
+                pub octets: Vec<f64>,
             }
         })
         .unwrap();
@@ -415,10 +372,9 @@ mod tests {
                 attributes: vec![],
                 fields: vec![NormalizedField {
                     name: "octets".to_string(),
-                    ty: NormalizedTypeExpr::Array {
-                        element: Box::new(NormalizedTypeExpr::Primitive(ast::PrimitiveType::U8)),
-                        size: 4,
-                    },
+                    ty: NormalizedTypeExpr::List(Box::new(NormalizedTypeExpr::Primitive(
+                        ast::PrimitiveType::Number
+                    ))),
                 }],
             })
         );
@@ -429,7 +385,7 @@ mod tests {
         let item: syn::ItemStruct = syn::parse2(quote! {
             pub struct SocketAddrV4 {
                 pub ip: IpAddrV4,
-                pub port: u16,
+                pub port: f64,
             }
         })
         .unwrap();
@@ -447,7 +403,7 @@ mod tests {
                     },
                     NormalizedField {
                         name: "port".to_string(),
-                        ty: NormalizedTypeExpr::Primitive(ast::PrimitiveType::U16),
+                        ty: NormalizedTypeExpr::Primitive(ast::PrimitiveType::Number),
                     },
                 ],
             })
@@ -569,7 +525,7 @@ mod tests {
         // Build the Rust side
         let item: syn::ItemStruct = syn::parse2(quote! {
             pub struct IpAddrV4 {
-                pub octets: [u8; 4],
+                pub octets: Vec<f64>,
             }
         })
         .unwrap();
@@ -613,8 +569,8 @@ mod tests {
         // Add an extra field — should NOT match
         let item: syn::ItemStruct = syn::parse2(quote! {
             pub struct IpAddrV4 {
-                pub octets: [u8; 4],
-                pub extra: u8,
+                pub octets: Vec<f64>,
+                pub extra: f64,
             }
         })
         .unwrap();
@@ -637,7 +593,7 @@ mod tests {
         let attr = quote! { module = "spin-core-net", resource = "IpAddrV4" };
         let item = quote! {
             pub struct IpAddrV4 {
-                pub octets: [u8; 4],
+                pub octets: Vec<f64>,
             }
         };
         let output = super::spin_core_impl(attr, item.clone());
@@ -654,8 +610,8 @@ mod tests {
         let attr = quote! { module = "spin-core-net", resource = "IpAddrV4" };
         let item = quote! {
             pub struct IpAddrV4 {
-                pub octets: [u8; 4],
-                pub extra: u8,
+                pub octets: Vec<f64>,
+                pub extra: f64,
             }
         };
         let output = super::spin_core_impl(attr, item);

@@ -6,7 +6,7 @@ use spin_up::spin;
 #[test]
 fn valid_delegate_produces_no_errors() {
     let module = spin! {
-        interface Endpoint = host: str, port: u16;
+        interface Endpoint = host: string, port: number;
 
         #[delegate(Endpoint)]
         type Proxy =
@@ -29,7 +29,7 @@ fn valid_delegate_produces_no_errors() {
 #[test]
 fn delegate_without_target_emits_invalid_delegate() {
     let module = spin! {
-        interface Endpoint = host: str;
+        interface Endpoint = host: string;
 
         #[delegate(Endpoint)]
         type Proxy =
@@ -53,7 +53,7 @@ fn delegate_with_unknown_interface_emits_unknown_interface() {
         #[delegate(NonExistent)]
         type Proxy =
             #[target(NonExistent)]
-            frontend: str,
+            frontend: string,
         ;
     };
     let mut registry = TypeRegistry::new();
@@ -69,7 +69,7 @@ fn delegate_with_unknown_interface_emits_unknown_interface() {
 
 #[test]
 fn type_without_delegates_produces_no_errors() {
-    let module = spin! { type Foo = x: u32; };
+    let module = spin! { type Foo = x: number; };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
 
@@ -80,7 +80,7 @@ fn type_without_delegates_produces_no_errors() {
 #[test]
 fn multiple_target_fields_for_same_delegate_emits_invalid_delegate() {
     let module = spin! {
-        interface Endpoint = host: str;
+        interface Endpoint = host: string;
 
         #[delegate(Endpoint)]
         type Proxy =
@@ -104,12 +104,12 @@ fn multiple_target_fields_for_same_delegate_emits_invalid_delegate() {
 #[test]
 fn target_field_type_mismatch_emits_invalid_delegate() {
     let module = spin! {
-        interface Endpoint = host: str;
+        interface Endpoint = host: string;
 
         #[delegate(Endpoint)]
         type Proxy =
             #[target(Endpoint)]
-            frontend: u32,
+            frontend: number,
         ;
     };
     let mut registry = TypeRegistry::new();
@@ -126,7 +126,7 @@ fn target_field_type_mismatch_emits_invalid_delegate() {
 #[test]
 fn target_without_delegate_emits_invalid_delegate() {
     let module = spin! {
-        interface Endpoint = host: str;
+        interface Endpoint = host: string;
 
         type Proxy =
             #[target(Endpoint)]
@@ -147,8 +147,8 @@ fn target_without_delegate_emits_invalid_delegate() {
 #[test]
 fn delegate_with_impl_block_for_field_type_is_valid() {
     let module = spin! {
-        interface Endpoint = host: str;
-        type MyFrontend = host: str;
+        interface Endpoint = host: string;
+        type MyFrontend = host: string;
         impl Endpoint for MyFrontend {
             host: self.host,
         }

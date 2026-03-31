@@ -11,7 +11,7 @@ fn test_normalize_strips_spans() {
         attributes: vec![],
         fields: vec![Field {
             name: "x".to_string(),
-            ty: TypeExpr::Primitive(PrimitiveType::U32),
+            ty: TypeExpr::Primitive(PrimitiveType::Number),
             attributes: vec![],
             span: 0..10,
         }],
@@ -24,7 +24,7 @@ fn test_normalize_strips_spans() {
         attributes: vec![],
         fields: vec![Field {
             name: "x".to_string(),
-            ty: TypeExpr::Primitive(PrimitiveType::U32),
+            ty: TypeExpr::Primitive(PrimitiveType::Number),
             attributes: vec![],
             span: 50..60,
         }],
@@ -42,7 +42,7 @@ fn test_normalize_different_items_not_equal() {
         attributes: vec![],
         fields: vec![Field {
             name: "x".to_string(),
-            ty: TypeExpr::Primitive(PrimitiveType::U32),
+            ty: TypeExpr::Primitive(PrimitiveType::Number),
             attributes: vec![],
             span: 0..10,
         }],
@@ -55,7 +55,7 @@ fn test_normalize_different_items_not_equal() {
         attributes: vec![],
         fields: vec![Field {
             name: "x".to_string(),
-            ty: TypeExpr::Primitive(PrimitiveType::U32),
+            ty: TypeExpr::Primitive(PrimitiveType::Number),
             attributes: vec![],
             span: 0..10,
         }],

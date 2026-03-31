@@ -6,8 +6,8 @@ use spin_up::spin;
 #[test]
 fn redefinition_same_type_ok() {
     let module = spin! {
-        let port: u16 = 5432
-        let port: u16 = 8080
+        let port: number = 5432
+        let port: number = 8080
     };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
@@ -23,8 +23,8 @@ fn redefinition_same_type_ok() {
 #[test]
 fn redefinition_type_mismatch() {
     let module = spin! {
-        let port: u16 = 5432
-        let port: str = "hello"
+        let port: number = 5432
+        let port: string = "hello"
     };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
@@ -40,8 +40,8 @@ fn redefinition_type_mismatch() {
 #[test]
 fn no_redefinition_passes() {
     let module = spin! {
-        let port: u16 = 5432
-        let host: str = "localhost"
+        let port: number = 5432
+        let host: string = "localhost"
     };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
@@ -103,9 +103,9 @@ fn redefinition_inferred_same_type_ok() {
 #[test]
 fn multiple_redefinitions_first_type_wins() {
     let module = spin! {
-        let x: u16 = 1
-        let x: u16 = 2
-        let x: str = "bad"
+        let x: number = 1
+        let x: number = 2
+        let x: string = "bad"
     };
     let mut registry = TypeRegistry::new();
     registry.register_module("test", &module);
@@ -121,7 +121,7 @@ fn multiple_redefinitions_first_type_wins() {
 #[test]
 fn redefinition_explicit_vs_inferred_compatible() {
     let module = spin! {
-        let x: str = "hello"
+        let x: string = "hello"
         let x = "world"
     };
     let mut registry = TypeRegistry::new();
@@ -138,7 +138,7 @@ fn redefinition_explicit_vs_inferred_compatible() {
 #[test]
 fn redefinition_explicit_vs_inferred_mismatch() {
     let module = spin! {
-        let x: u16 = 5432
+        let x: number = 5432
         let x = "hello"
     };
     let mut registry = TypeRegistry::new();

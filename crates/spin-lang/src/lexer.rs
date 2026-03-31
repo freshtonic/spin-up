@@ -21,19 +21,33 @@ pub enum Token {
 
     // Primitive type keywords
     Bool,
-    U8,
-    U16,
-    U32,
-    U64,
-    U128,
-    I8,
-    I16,
-    I32,
-    I64,
-    I128,
-    F32,
-    F64,
-    Str,
+    Number_, // "number" keyword (Number_ to avoid conflict with Number literal)
+    String_, // "string" keyword (String_ to avoid conflict with StringLit)
+
+    // Collection keywords
+    Set, // "Set"
+
+    // Built-in function keywords
+    Keep,
+    Drop_, // "drop" (Drop_ to avoid Rust conflict)
+    Count,
+    Sum,
+    Mean,
+    Median,
+    Min,
+    Max,
+
+    // Regex literal
+    RegexLit(String),
+
+    // Regex match operator
+    RegexMatch, // =~
+
+    // Arithmetic operators
+    Plus,  // +
+    Minus, // -
+    Star,  // *
+    Slash, // /
 
     // Type definition keywords
     Type,
@@ -207,22 +221,6 @@ pub fn lex(input: &str) -> Result<Vec<Spanned>, LexError> {
                     }
                 }
 
-                // Optional type suffix (trailing alphabetic + digits, e.g. u32, f64, i8)
-                if let Some(&(_, s)) = chars.peek()
-                    && s.is_ascii_alphabetic()
-                {
-                    value.push(s);
-                    chars.next();
-                    while let Some(&(_, d)) = chars.peek() {
-                        if d.is_ascii_alphanumeric() {
-                            value.push(d);
-                            chars.next();
-                        } else {
-                            break;
-                        }
-                    }
-                }
-
                 let end = start + value.len();
                 tokens.push(Spanned {
                     kind: Token::Number(value),
@@ -241,6 +239,25 @@ pub fn lex(input: &str) -> Result<Vec<Spanned>, LexError> {
                         break;
                     }
                 }
+                // Regex literal: r"pattern"
+                if value == "r" && matches!(chars.peek(), Some(&(_, '"'))) {
+                    chars.next(); // consume opening '"'
+                    let mut pattern = String::new();
+                    loop {
+                        match chars.next() {
+                            Some((_, '"')) => break,
+                            Some((_, c)) => pattern.push(c),
+                            None => return Err(LexError::UnterminatedString { pos: start }),
+                        }
+                    }
+                    let end = start + 2 + pattern.len() + 1; // r" + pattern + "
+                    tokens.push(Spanned {
+                        kind: Token::RegexLit(pattern),
+                        span: start..end,
+                    });
+                    continue;
+                }
+
                 let end = start + value.len();
                 let kind = match value.as_str() {
                     "import" => Token::Import,
@@ -252,19 +269,17 @@ pub fn lex(input: &str) -> Result<Vec<Spanned>, LexError> {
                     "filter" => Token::Filter,
                     "Self" => Token::Self_,
                     "bool" => Token::Bool,
-                    "u8" => Token::U8,
-                    "u16" => Token::U16,
-                    "u32" => Token::U32,
-                    "u64" => Token::U64,
-                    "u128" => Token::U128,
-                    "i8" => Token::I8,
-                    "i16" => Token::I16,
-                    "i32" => Token::I32,
-                    "i64" => Token::I64,
-                    "i128" => Token::I128,
-                    "f32" => Token::F32,
-                    "f64" => Token::F64,
-                    "str" => Token::Str,
+                    "number" => Token::Number_,
+                    "string" => Token::String_,
+                    "Set" => Token::Set,
+                    "keep" => Token::Keep,
+                    "drop" => Token::Drop_,
+                    "count" => Token::Count,
+                    "sum" => Token::Sum,
+                    "mean" => Token::Mean,
+                    "median" => Token::Median,
+                    "min" => Token::Min,
+                    "max" => Token::Max,
                     "type" => Token::Type,
                     "interface" => Token::Interface,
                     "impl" => Token::Impl,
@@ -292,6 +307,14 @@ pub fn lex(input: &str) -> Result<Vec<Spanned>, LexError> {
                 chars.next();
                 tokens.push(Spanned {
                     kind: Token::EqEq,
+                    span: pos..pos + 2,
+                });
+            }
+            '=' if matches!(chars.clone().nth(1), Some((_, '~'))) => {
+                chars.next();
+                chars.next();
+                tokens.push(Spanned {
+                    kind: Token::RegexMatch,
                     span: pos..pos + 2,
                 });
             }
@@ -340,6 +363,34 @@ pub fn lex(input: &str) -> Result<Vec<Spanned>, LexError> {
                 tokens.push(Spanned {
                     kind: Token::Arrow,
                     span: pos..pos + 2,
+                });
+            }
+            '-' => {
+                chars.next();
+                tokens.push(Spanned {
+                    kind: Token::Minus,
+                    span: pos..pos + 1,
+                });
+            }
+            '+' => {
+                chars.next();
+                tokens.push(Spanned {
+                    kind: Token::Plus,
+                    span: pos..pos + 1,
+                });
+            }
+            '*' => {
+                chars.next();
+                tokens.push(Spanned {
+                    kind: Token::Star,
+                    span: pos..pos + 1,
+                });
+            }
+            '/' => {
+                chars.next();
+                tokens.push(Spanned {
+                    kind: Token::Slash,
+                    span: pos..pos + 1,
                 });
             }
             // Single-character operators

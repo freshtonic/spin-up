@@ -6,8 +6,8 @@ use spin_up::spin;
 #[test]
 fn valid_as_interface() {
     let module = spin! {
-        interface Endpoint = port: u16;
-        type Server = name: str;
+        interface Endpoint = port: number;
+        type Server = name: string;
         impl Endpoint for Server {
             port: 8080,
         }
@@ -32,7 +32,7 @@ fn valid_as_interface() {
 #[test]
 fn as_interface_unknown_interface() {
     let module = spin! {
-        type Server = name: str;
+        type Server = name: string;
         let x = Server {
             name: "foo",
             <as NonExistent> {
@@ -54,8 +54,8 @@ fn as_interface_unknown_interface() {
 #[test]
 fn as_interface_type_does_not_implement() {
     let module = spin! {
-        interface Endpoint = port: u16;
-        type Server = name: str;
+        interface Endpoint = port: number;
+        type Server = name: string;
         let x = Server {
             name: "foo",
             <as Endpoint> {
@@ -78,7 +78,7 @@ fn as_interface_type_does_not_implement() {
 #[test]
 fn no_as_interfaces_passes() {
     let module = spin! {
-        type Server = name: str;
+        type Server = name: string;
         let x = Server { name: "foo" }
     };
     let mut registry = TypeRegistry::new();

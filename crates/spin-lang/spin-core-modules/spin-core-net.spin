@@ -1,11 +1,11 @@
 #[lang-item]
 type IpAddrV4 =
-  octets: [u8; 4],
+  octets: [number],
 ;
 
 #[lang-item]
 type IpAddrV6 =
-  octets: [u8; 16],
+  octets: [number],
 ;
 
 #[lang-item]
@@ -14,13 +14,13 @@ type IpAddr = V4(IpAddrV4) | V6(IpAddrV6);
 #[lang-item]
 type SocketAddrV4 =
   ip: IpAddrV4,
-  port: u16,
+  port: number,
 ;
 
 #[lang-item]
 type SocketAddrV6 =
   ip: IpAddrV6,
-  port: u16,
+  port: number,
 ;
 
 #[lang-item]

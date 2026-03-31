@@ -6,8 +6,8 @@ use spin_up::spin;
 #[test]
 fn test_unify_complete_impl() {
     let module = spin! {
-        interface Endpoint = host: str, port: u16;
-        type Server = hostname: str, port_num: u16;
+        interface Endpoint = host: string, port: number;
+        type Server = hostname: string, port_num: number;
         impl Endpoint for Server {
             host: self.hostname,
             port: self.port_num,
@@ -27,8 +27,8 @@ fn test_unify_complete_impl() {
 #[test]
 fn test_unify_missing_required_field() {
     let module = spin! {
-        interface Endpoint = host: str, port: u16;
-        type Server = hostname: str;
+        interface Endpoint = host: string, port: number;
+        type Server = hostname: string;
         impl Endpoint for Server {
             host: self.hostname,
         }
@@ -47,8 +47,8 @@ fn test_unify_missing_required_field() {
 #[test]
 fn test_unify_optional_field_can_be_omitted() {
     let module = spin! {
-        interface Endpoint = host: str, tls: Option<TlsConfig>;
-        type Server = hostname: str;
+        interface Endpoint = host: string, tls: Option<TlsConfig>;
+        type Server = hostname: string;
         impl Endpoint for Server {
             host: self.hostname,
         }
@@ -68,11 +68,11 @@ fn test_unify_optional_field_can_be_omitted() {
 fn test_unify_default_field_can_be_omitted() {
     let module = spin! {
         interface Endpoint =
-            host: str,
+            host: string,
             #[default("localhost")]
-            fallback: str,
+            fallback: string,
         ;
-        type Server = hostname: str;
+        type Server = hostname: string;
         impl Endpoint for Server {
             host: self.hostname,
         }
@@ -91,7 +91,7 @@ fn test_unify_default_field_can_be_omitted() {
 #[test]
 fn test_unify_unknown_interface_error() {
     let module = spin! {
-        type Server = hostname: str;
+        type Server = hostname: string;
         impl NonExistent for Server {
             host: self.hostname,
         }
@@ -110,8 +110,8 @@ fn test_unify_unknown_interface_error() {
 #[test]
 fn test_unify_type_mismatch_in_impl() {
     let module = spin! {
-        interface Endpoint = host: str;
-        type Server = hostname: u32;
+        interface Endpoint = host: string;
+        type Server = hostname: number;
         impl Endpoint for Server {
             host: self.hostname,
         }
@@ -124,15 +124,15 @@ fn test_unify_type_mismatch_in_impl() {
     assert!(matches!(
         &diags.errors()[0].kind,
         DiagnosticKind::TypeMismatch { expected, found }
-        if expected == "str" && found == "u32"
+        if expected == "string" && found == "number"
     ));
 }
 
 #[test]
 fn test_unify_compatible_types_in_impl() {
     let module = spin! {
-        interface Endpoint = host: str, port: u16;
-        type Server = hostname: str, port_num: u16;
+        interface Endpoint = host: string, port: number;
+        type Server = hostname: string, port_num: number;
         impl Endpoint for Server {
             host: self.hostname,
             port: self.port_num,
@@ -152,8 +152,8 @@ fn test_unify_compatible_types_in_impl() {
 #[test]
 fn test_unify_string_literal_matches_str() {
     let module = spin! {
-        interface Endpoint = host: str;
-        type Server = x: u32;
+        interface Endpoint = host: string;
+        type Server = x: number;
         impl Endpoint for Server {
             host: "localhost",
         }
@@ -172,8 +172,8 @@ fn test_unify_string_literal_matches_str() {
 #[test]
 fn test_unify_bool_literal_mismatch() {
     let module = spin! {
-        interface Endpoint = host: str;
-        type Server = x: u32;
+        interface Endpoint = host: string;
+        type Server = x: number;
         impl Endpoint for Server {
             host: true,
         }
@@ -186,7 +186,7 @@ fn test_unify_bool_literal_mismatch() {
     assert!(matches!(
         &diags.errors()[0].kind,
         DiagnosticKind::TypeMismatch { expected, found }
-        if expected == "str" && found == "bool"
+        if expected == "string" && found == "bool"
     ));
 }
 
@@ -194,7 +194,7 @@ fn test_unify_bool_literal_mismatch() {
 fn test_unify_none_matches_option() {
     let module = spin! {
         interface Endpoint = tls: Option<TlsConfig>;
-        type Server = x: u32;
+        type Server = x: number;
         impl Endpoint for Server {
             tls: None,
         }
@@ -213,9 +213,9 @@ fn test_unify_none_matches_option() {
 #[test]
 fn test_unify_chained_field_access() {
     let module = spin! {
-        type Inner = value: str;
+        type Inner = value: string;
         type Server = inner: Inner;
-        interface Endpoint = host: str;
+        interface Endpoint = host: string;
         impl Endpoint for Server {
             host: self.inner.value,
         }

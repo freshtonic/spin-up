@@ -93,7 +93,7 @@ fn test_spin_check_subcommand_exists() {
 fn test_spin_check_valid_file() {
     let tmp = tempfile::TempDir::new().unwrap();
     let spin_file = tmp.path().join("test.spin");
-    std::fs::write(&spin_file, "type Foo = x: u32;").unwrap();
+    std::fs::write(&spin_file, "type Foo = x: number;").unwrap();
 
     Command::cargo_bin("spin")
         .unwrap()
@@ -108,7 +108,7 @@ fn test_spin_check_valid_file() {
 fn test_spin_check_with_error() {
     let tmp = tempfile::TempDir::new().unwrap();
     let spin_file = tmp.path().join("test.spin");
-    std::fs::write(&spin_file, "import nonexistent\ntype Foo = x: u32;").unwrap();
+    std::fs::write(&spin_file, "import nonexistent\ntype Foo = x: number;").unwrap();
 
     Command::cargo_bin("spin")
         .unwrap()

@@ -135,7 +135,19 @@ fn collect_ident_refs(expr: &Expr, known: &HashSet<String>, out: &mut HashSet<St
         | Expr::BoolLit(_)
         | Expr::It
         | Expr::Self_
-        | Expr::None_ => {}
+        | Expr::None_
+        | Expr::RegexLit(_) => {}
+        Expr::ListLit(items) => {
+            for item in items {
+                collect_ident_refs(item, known, out);
+            }
+        }
+        Expr::HashMapLit(pairs) => {
+            for (k, v) in pairs {
+                collect_ident_refs(k, known, out);
+                collect_ident_refs(v, known, out);
+            }
+        }
     }
 }
 

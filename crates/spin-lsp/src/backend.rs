@@ -101,10 +101,7 @@ const KEYWORDS: &[&str] = &[
     "false",
 ];
 
-const PRIMITIVE_TYPES: &[&str] = &[
-    "bool", "u8", "u16", "u32", "u64", "u128", "i8", "i16", "i32", "i64", "i128", "f32", "f64",
-    "str",
-];
+const PRIMITIVE_TYPES: &[&str] = &["bool", "number", "string"];
 
 /// Collect all user-defined type names (records, choices, interfaces) from a module.
 fn collect_type_names(module: &Module) -> Vec<String> {
@@ -155,13 +152,10 @@ fn format_type_expr(ty: &TypeExpr) -> String {
             format!("{name}<{}>", args_str.join(", "))
         }
         TypeExpr::SelfPath(n) => format!("Self::{n}"),
-        TypeExpr::Array { element, size } => format!("[{}; {size}]", format_type_expr(element)),
-        TypeExpr::Slice(element) => format!("[{}]", format_type_expr(element)),
-        TypeExpr::Tuple(elems) => {
-            let parts: Vec<String> = elems.iter().map(format_type_expr).collect();
-            format!("({})", parts.join(", "))
+        TypeExpr::List(element) => format!("[{}]", format_type_expr(element)),
+        TypeExpr::HashMap { key, value } => {
+            format!("{{{}: {}}}", format_type_expr(key), format_type_expr(value))
         }
-        TypeExpr::Unit => "()".to_string(),
     }
 }
 
@@ -987,9 +981,8 @@ mod tests {
         let items = primitive_type_completions();
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"bool"));
-        assert!(labels.contains(&"u32"));
-        assert!(labels.contains(&"str"));
-        assert!(labels.contains(&"f64"));
+        assert!(labels.contains(&"number"));
+        assert!(labels.contains(&"string"));
         assert_eq!(items.len(), PRIMITIVE_TYPES.len());
     }
 
@@ -997,7 +990,7 @@ mod tests {
 
     #[test]
     fn collect_type_names_from_parsed_module() {
-        let source = "type Foo = x: u32;\ntype Bar = A | B;\ninterface Baz = y: str;";
+        let source = "type Foo = x: number;\ntype Bar = A | B;\ninterface Baz = y: string;";
         let module = parser::parse(source).unwrap();
         let names = collect_type_names(&module);
         assert_eq!(names, vec!["Foo", "Bar", "Baz"]);
@@ -1005,7 +998,7 @@ mod tests {
 
     #[test]
     fn user_type_completions_from_parsed_module() {
-        let source = "type MyType = value: u32;";
+        let source = "type MyType = value: number;";
         let module = parser::parse(source).unwrap();
         let items = user_type_completions(&module);
         assert_eq!(items.len(), 1);
@@ -1017,19 +1010,19 @@ mod tests {
 
     #[test]
     fn field_completions_for_record() {
-        let source = "type Server = host: str, port: u16;";
+        let source = "type Server = host: string, port: number;";
         let module = parser::parse(source).unwrap();
         let items = field_completions(&module, "Server");
         assert_eq!(items.len(), 2);
         assert_eq!(items[0].label, "host");
-        assert_eq!(items[0].detail, Some("str".to_string()));
+        assert_eq!(items[0].detail, Some("string".to_string()));
         assert_eq!(items[1].label, "port");
-        assert_eq!(items[1].detail, Some("u16".to_string()));
+        assert_eq!(items[1].detail, Some("number".to_string()));
     }
 
     #[test]
     fn field_completions_for_interface() {
-        let source = "interface Endpoint = host: str, port: u16;";
+        let source = "interface Endpoint = host: string, port: number;";
         let module = parser::parse(source).unwrap();
         let items = field_completions(&module, "Endpoint");
         assert_eq!(items.len(), 2);
@@ -1039,7 +1032,7 @@ mod tests {
 
     #[test]
     fn field_completions_for_unknown_type() {
-        let source = "type Server = host: str;";
+        let source = "type Server = host: string;";
         let module = parser::parse(source).unwrap();
         let items = field_completions(&module, "NonExistent");
         assert!(items.is_empty());
@@ -1049,7 +1042,7 @@ mod tests {
 
     #[test]
     fn build_completions_general_includes_keywords_and_types() {
-        let source = "type Server = host: str;";
+        let source = "type Server = host: string;";
         let module = parser::parse(source).unwrap();
         let items = build_completions(Some(&module), CompletionContext::General);
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
@@ -1058,26 +1051,26 @@ mod tests {
         assert!(labels.contains(&"let"));
         // Primitive types
         assert!(labels.contains(&"bool"));
-        assert!(labels.contains(&"str"));
+        assert!(labels.contains(&"string"));
         // User types
         assert!(labels.contains(&"Server"));
     }
 
     #[test]
     fn build_completions_after_colon_includes_types_only() {
-        let source = "type Server = host: str;";
+        let source = "type Server = host: string;";
         let module = parser::parse(source).unwrap();
         let items = build_completions(Some(&module), CompletionContext::AfterColon);
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         // Should have types but not keywords like "let"
-        assert!(labels.contains(&"str"));
+        assert!(labels.contains(&"string"));
         assert!(labels.contains(&"Server"));
         assert!(!labels.contains(&"let"));
     }
 
     #[test]
     fn build_completions_after_dot_for_self() {
-        let source = "type Server = host: str, port: u16;";
+        let source = "type Server = host: string, port: number;";
         let module = parser::parse(source).unwrap();
         let items = build_completions(
             Some(&module),
@@ -1094,7 +1087,7 @@ mod tests {
 
     #[test]
     fn hover_on_keyword() {
-        let source = "type Foo = x: u32;";
+        let source = "type Foo = x: number;";
         let module = parser::parse(source).unwrap();
         let result = hover_at(source, Some(&module), 1); // "t|ype"
         let text = result.unwrap();
@@ -1104,23 +1097,23 @@ mod tests {
 
     #[test]
     fn hover_on_record_type_name() {
-        let source = "type Server = host: str, port: u16;";
+        let source = "type Server = host: string, port: number;";
         let module = parser::parse(source).unwrap();
         let result = hover_at(source, Some(&module), 6); // "S|erver"
         let text = result.unwrap();
         assert!(text.contains("**type** Server"));
-        assert!(text.contains("host: str"));
-        assert!(text.contains("port: u16"));
+        assert!(text.contains("host: string"));
+        assert!(text.contains("port: number"));
     }
 
     #[test]
     fn hover_on_interface_name() {
-        let source = "interface Endpoint = host: str;";
+        let source = "interface Endpoint = host: string;";
         let module = parser::parse(source).unwrap();
         let result = hover_at(source, Some(&module), 11); // "E|ndpoint"
         let text = result.unwrap();
         assert!(text.contains("**interface** Endpoint"));
-        assert!(text.contains("host: str"));
+        assert!(text.contains("host: string"));
     }
 
     #[test]
@@ -1137,17 +1130,17 @@ mod tests {
 
     #[test]
     fn hover_on_field_name() {
-        let source = "type Server = host: str, port: u16;";
+        let source = "type Server = host: string, port: number;";
         let module = parser::parse(source).unwrap();
         let result = hover_at(source, Some(&module), 15); // "h|ost"
         let text = result.unwrap();
         assert!(text.contains("**field** `host`"));
-        assert!(text.contains("Type: `str`"));
+        assert!(text.contains("Type: `string`"));
     }
 
     #[test]
     fn hover_on_nothing() {
-        let source = "type Foo = x: u32;";
+        let source = "type Foo = x: number;";
         let module = parser::parse(source).unwrap();
         let result = hover_at(source, Some(&module), 9); // on "=" which is not an ident
         assert!(result.is_none());
@@ -1163,8 +1156,8 @@ mod tests {
     #[test]
     fn format_type_expr_primitive() {
         assert_eq!(
-            format_type_expr(&TypeExpr::Primitive(PrimitiveType::U32)),
-            "u32"
+            format_type_expr(&TypeExpr::Primitive(PrimitiveType::Number)),
+            "number"
         );
     }
 
@@ -1184,15 +1177,31 @@ mod tests {
         assert_eq!(
             format_type_expr(&TypeExpr::Generic {
                 name: "Option".to_string(),
-                args: vec![TypeExpr::Primitive(PrimitiveType::U32)],
+                args: vec![TypeExpr::Primitive(PrimitiveType::Number)],
             }),
-            "Option<u32>"
+            "Option<number>"
         );
     }
 
     #[test]
-    fn format_type_expr_unit() {
-        assert_eq!(format_type_expr(&TypeExpr::Unit), "()");
+    fn format_type_expr_list() {
+        assert_eq!(
+            format_type_expr(&TypeExpr::List(Box::new(TypeExpr::Primitive(
+                PrimitiveType::Number
+            )))),
+            "[number]"
+        );
+    }
+
+    #[test]
+    fn format_type_expr_hashmap() {
+        assert_eq!(
+            format_type_expr(&TypeExpr::HashMap {
+                key: Box::new(TypeExpr::Primitive(PrimitiveType::String)),
+                value: Box::new(TypeExpr::Primitive(PrimitiveType::Number)),
+            }),
+            "{string: number}"
+        );
     }
 
     // --- Diagnostic conversion tests ---
@@ -1239,7 +1248,7 @@ mod tests {
 
     #[test]
     fn find_let_binding_type_with_construction() {
-        let source = "type Server = host: str;\nlet s = Server { host: \"localhost\" }";
+        let source = "type Server = host: string;\nlet s = Server { host: \"localhost\" }";
         let module = parser::parse(source).unwrap();
         let result = find_let_binding_type(&module, "s");
         assert_eq!(result, Some("Server".to_string()));
@@ -1247,7 +1256,7 @@ mod tests {
 
     #[test]
     fn find_let_binding_type_not_found() {
-        let source = "type Server = host: str;";
+        let source = "type Server = host: string;";
         let module = parser::parse(source).unwrap();
         let result = find_let_binding_type(&module, "nonexistent");
         assert_eq!(result, None);
@@ -1257,7 +1266,7 @@ mod tests {
 
     #[test]
     fn span_to_range_single_line() {
-        let source = "type Foo = x: u32;";
+        let source = "type Foo = x: number;";
         let range = span_to_range(source, &(5..8));
         assert_eq!(range.start, Position::new(0, 5));
         assert_eq!(range.end, Position::new(0, 8));

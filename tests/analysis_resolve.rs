@@ -7,7 +7,7 @@ use tempfile::TempDir;
 fn test_resolve_single_module() {
     let tmp = TempDir::new().unwrap();
     let spin_file = tmp.path().join("main.spin");
-    fs::write(&spin_file, "type Foo = x: u32;").unwrap();
+    fs::write(&spin_file, "type Foo = x: number;").unwrap();
 
     let result = resolve_modules(&spin_file, &[tmp.path().to_path_buf()]);
     assert!(result.diagnostics.is_ok());
@@ -17,7 +17,7 @@ fn test_resolve_single_module() {
 #[test]
 fn test_resolve_with_import() {
     let tmp = TempDir::new().unwrap();
-    fs::write(tmp.path().join("types.spin"), "type Bar = y: str;").unwrap();
+    fs::write(tmp.path().join("types.spin"), "type Bar = y: string;").unwrap();
     fs::write(
         tmp.path().join("main.spin"),
         "import types\ntype Foo = x: Bar;",

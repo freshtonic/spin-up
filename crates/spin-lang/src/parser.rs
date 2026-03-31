@@ -47,6 +47,11 @@ impl Parser {
                 kind: Token::Ident(name),
                 span,
             }) => Ok((name.clone(), span.clone())),
+            // Contextual keywords: can be used as identifiers in most positions
+            Some(Spanned { kind, span }) if token_as_contextual_ident(kind).is_some() => Ok((
+                token_as_contextual_ident(kind).unwrap().to_string(),
+                span.clone(),
+            )),
             Some(Spanned { kind, span }) => Err(ParseError::Expected {
                 expected: "identifier".to_string(),
                 found: format!("{kind:?}"),
@@ -219,20 +224,28 @@ impl Parser {
         }
 
         // Disambiguate product vs sum:
-        // - Ident followed by Colon => product type (field: Type)
+        // - Ident (or contextual keyword) followed by Colon => product type (field: Type)
         // - HashBracket => field attribute, so product type
         // - Otherwise => sum type (variants)
-        let is_product = match self.tokens.get(self.pos) {
+        let first_is_ident_like = matches!(
+            self.tokens.get(self.pos),
             Some(Spanned {
                 kind: Token::Ident(_),
                 ..
-            }) => matches!(
-                self.tokens.get(self.pos + 1),
-                Some(Spanned {
-                    kind: Token::Colon,
-                    ..
-                })
-            ),
+            })
+        ) || self
+            .tokens
+            .get(self.pos)
+            .is_some_and(|t| token_as_contextual_ident(&t.kind).is_some());
+        let second_is_colon = matches!(
+            self.tokens.get(self.pos + 1),
+            Some(Spanned {
+                kind: Token::Colon,
+                ..
+            })
+        );
+        let is_product = match self.tokens.get(self.pos) {
+            _ if first_is_ident_like && second_is_colon => true,
             Some(Spanned {
                 kind: Token::HashBracket,
                 ..
@@ -542,6 +555,29 @@ impl Parser {
                     _ => self.parse_ident_expr()?,
                 }
             }
+            Some(Spanned {
+                kind: Token::RegexLit(_),
+                ..
+            }) => {
+                if let Token::RegexLit(s) = &self.advance().unwrap().kind {
+                    Expr::RegexLit(s.clone())
+                } else {
+                    unreachable!()
+                }
+            }
+            Some(Spanned {
+                kind: Token::LBracket,
+                ..
+            }) => {
+                self.advance(); // consume '['
+                let items = self.parse_expr_list(Token::RBracket)?;
+                self.expect_token(Token::RBracket)?;
+                Expr::ListLit(items)
+            }
+            // Contextual keywords used as identifiers in expression position
+            Some(Spanned { kind, .. }) if token_as_contextual_ident(kind).is_some() => {
+                self.parse_ident_expr()?
+            }
             Some(Spanned { kind, span }) => {
                 let pos = span.start;
                 let found = format!("{kind:?}");
@@ -616,49 +652,59 @@ impl Parser {
         // Check if tokens at pos+1 and pos+2 are Ident:Colon or <as (Lt followed by Ident("as"))
         let t1 = self.tokens.get(self.pos + 1);
         let t2 = self.tokens.get(self.pos + 2);
-        matches!(
-            (t1, t2),
-            (
-                Some(Spanned {
-                    kind: Token::Ident(_),
-                    ..
-                }),
-                Some(Spanned {
-                    kind: Token::Colon,
-                    ..
-                })
+        let t1_is_ident_like = matches!(
+            t1,
+            Some(Spanned {
+                kind: Token::Ident(_),
+                ..
+            })
+        ) || t1
+            .is_some_and(|t| token_as_contextual_ident(&t.kind).is_some());
+        let t2_is_colon = matches!(
+            t2,
+            Some(Spanned {
+                kind: Token::Colon,
+                ..
+            })
+        );
+        (t1_is_ident_like && t2_is_colon)
+            || matches!(
+                (t1, t2),
+                (
+                    Some(Spanned {
+                        kind: Token::Lt,
+                        ..
+                    }),
+                    Some(Spanned {
+                        kind: Token::Ident(name),
+                        ..
+                    })
+                ) if name == "as"
             )
-        ) || matches!(
-            (t1, t2),
-            (
-                Some(Spanned {
-                    kind: Token::Lt,
-                    ..
-                }),
-                Some(Spanned {
-                    kind: Token::Ident(name),
-                    ..
-                })
-            ) if name == "as"
-        )
     }
 
     /// Check if the current position (inside parens) has `Ident Colon` pattern
     /// indicating named arguments.
     fn is_named_arg_pattern(&self) -> bool {
-        matches!(
-            (self.tokens.get(self.pos), self.tokens.get(self.pos + 1)),
-            (
-                Some(Spanned {
-                    kind: Token::Ident(_),
-                    ..
-                }),
+        let is_ident_like = matches!(
+            self.tokens.get(self.pos),
+            Some(Spanned {
+                kind: Token::Ident(_),
+                ..
+            })
+        ) || self
+            .tokens
+            .get(self.pos)
+            .is_some_and(|t| token_as_contextual_ident(&t.kind).is_some());
+
+        is_ident_like
+            && matches!(
+                self.tokens.get(self.pos + 1),
                 Some(Spanned {
                     kind: Token::Colon,
                     ..
                 })
             )
-        )
     }
 
     fn parse_field_init_list(&mut self, terminator: Token) -> Result<Vec<FieldInit>, ParseError> {
@@ -847,41 +893,25 @@ impl Parser {
             return Ok(crate::ast::TypeExpr::Primitive(primitive));
         }
 
-        // Array [T; N] or Slice [T]
+        // List [T]
         if self.check(&Token::LBracket) {
             self.advance();
             let element = self.parse_type_expr()?;
-            if self.check(&Token::Semicolon) {
-                self.advance();
-                let size = self.parse_array_size()?;
-                self.expect_token(Token::RBracket)?;
-                return Ok(crate::ast::TypeExpr::Array {
-                    element: Box::new(element),
-                    size,
-                });
-            }
             self.expect_token(Token::RBracket)?;
-            return Ok(crate::ast::TypeExpr::Slice(Box::new(element)));
+            return Ok(crate::ast::TypeExpr::List(Box::new(element)));
         }
 
-        // Tuple (T1, T2, ...) or Unit ()
-        if self.check(&Token::LParen) {
+        // HashMap {K: V}
+        if self.check(&Token::LBrace) {
             self.advance();
-            if self.check(&Token::RParen) {
-                self.advance();
-                return Ok(crate::ast::TypeExpr::Unit);
-            }
-            let mut elements = Vec::new();
-            loop {
-                elements.push(self.parse_type_expr()?);
-                if self.check(&Token::Comma) {
-                    self.advance();
-                } else {
-                    break;
-                }
-            }
-            self.expect_token(Token::RParen)?;
-            return Ok(crate::ast::TypeExpr::Tuple(elements));
+            let key = self.parse_type_expr()?;
+            self.expect_token(Token::Colon)?;
+            let value = self.parse_type_expr()?;
+            self.expect_token(Token::RBrace)?;
+            return Ok(crate::ast::TypeExpr::HashMap {
+                key: Box::new(key),
+                value: Box::new(value),
+            });
         }
 
         let (name, _) = self.expect_ident()?;
@@ -918,44 +948,12 @@ impl Parser {
     fn try_parse_primitive(&mut self) -> Option<crate::ast::PrimitiveType> {
         let primitive = match self.peek()?.kind {
             Token::Bool => crate::ast::PrimitiveType::Bool,
-            Token::U8 => crate::ast::PrimitiveType::U8,
-            Token::U16 => crate::ast::PrimitiveType::U16,
-            Token::U32 => crate::ast::PrimitiveType::U32,
-            Token::U64 => crate::ast::PrimitiveType::U64,
-            Token::U128 => crate::ast::PrimitiveType::U128,
-            Token::I8 => crate::ast::PrimitiveType::I8,
-            Token::I16 => crate::ast::PrimitiveType::I16,
-            Token::I32 => crate::ast::PrimitiveType::I32,
-            Token::I64 => crate::ast::PrimitiveType::I64,
-            Token::I128 => crate::ast::PrimitiveType::I128,
-            Token::F32 => crate::ast::PrimitiveType::F32,
-            Token::F64 => crate::ast::PrimitiveType::F64,
-            Token::Str => crate::ast::PrimitiveType::Str,
+            Token::Number_ => crate::ast::PrimitiveType::Number,
+            Token::String_ => crate::ast::PrimitiveType::String,
             _ => return None,
         };
         self.advance();
         Some(primitive)
-    }
-
-    fn parse_array_size(&mut self) -> Result<usize, ParseError> {
-        match self.advance() {
-            Some(Spanned {
-                kind: Token::Number(n),
-                span,
-            }) => n.parse::<usize>().map_err(|_| ParseError::Expected {
-                expected: "valid array size (usize)".to_string(),
-                found: n.clone(),
-                pos: span.start,
-            }),
-            Some(Spanned { kind, span }) => Err(ParseError::Expected {
-                expected: "array size (number)".to_string(),
-                found: format!("{kind:?}"),
-                pos: span.start,
-            }),
-            None => Err(ParseError::UnexpectedEof {
-                expected: "array size (number)".to_string(),
-            }),
-        }
     }
 
     fn check(&self, expected: &Token) -> bool {
@@ -1054,6 +1052,27 @@ fn parse_dotted_path(path: &str) -> Expr {
     expr
 }
 
+/// Check if a keyword token can be used as a contextual identifier.
+/// These are keywords that name built-in functions and can also serve as field/type names.
+fn token_as_contextual_ident(token: &Token) -> Option<&'static str> {
+    match token {
+        Token::Keep => Some("keep"),
+        Token::Drop_ => Some("drop"),
+        Token::Count => Some("count"),
+        Token::Sum => Some("sum"),
+        Token::Mean => Some("mean"),
+        Token::Median => Some("median"),
+        Token::Min => Some("min"),
+        Token::Max => Some("max"),
+        Token::Set => Some("Set"),
+        Token::Map => Some("map"),
+        Token::Filter => Some("filter"),
+        Token::Number_ => Some("number"),
+        Token::String_ => Some("string"),
+        _ => None,
+    }
+}
+
 /// Convert a token to its string representation for raw attribute argument capture.
 fn token_to_string(token: &Token) -> String {
     match token {
@@ -1074,19 +1093,23 @@ fn token_to_string(token: &Token) -> String {
         Token::Let => "let".to_string(),
         Token::It => "it".to_string(),
         Token::Bool => "bool".to_string(),
-        Token::U8 => "u8".to_string(),
-        Token::U16 => "u16".to_string(),
-        Token::U32 => "u32".to_string(),
-        Token::U64 => "u64".to_string(),
-        Token::U128 => "u128".to_string(),
-        Token::I8 => "i8".to_string(),
-        Token::I16 => "i16".to_string(),
-        Token::I32 => "i32".to_string(),
-        Token::I64 => "i64".to_string(),
-        Token::I128 => "i128".to_string(),
-        Token::F32 => "f32".to_string(),
-        Token::F64 => "f64".to_string(),
-        Token::Str => "str".to_string(),
+        Token::Number_ => "number".to_string(),
+        Token::String_ => "string".to_string(),
+        Token::Set => "Set".to_string(),
+        Token::Keep => "keep".to_string(),
+        Token::Drop_ => "drop".to_string(),
+        Token::Count => "count".to_string(),
+        Token::Sum => "sum".to_string(),
+        Token::Mean => "mean".to_string(),
+        Token::Median => "median".to_string(),
+        Token::Min => "min".to_string(),
+        Token::Max => "max".to_string(),
+        Token::RegexLit(s) => format!("r\"{s}\""),
+        Token::RegexMatch => "=~".to_string(),
+        Token::Plus => "+".to_string(),
+        Token::Minus => "-".to_string(),
+        Token::Star => "*".to_string(),
+        Token::Slash => "/".to_string(),
         Token::Type => "type".to_string(),
         Token::HashBracket => "#[".to_string(),
         Token::LBrace => "{".to_string(),
@@ -1361,7 +1384,7 @@ mod tests {
 
     #[test]
     fn test_parse_let_binding_with_type_annotation() {
-        let input = "let port: u16 = 5432";
+        let input = "let port: number = 5432";
         let module = parse(input).unwrap();
         match &module.items[0] {
             Item::LetBinding(l) => {
@@ -1369,7 +1392,7 @@ mod tests {
                 assert!(l.ty.is_some());
                 assert!(matches!(
                     l.ty.as_ref().unwrap(),
-                    crate::ast::TypeExpr::Primitive(crate::ast::PrimitiveType::U16)
+                    crate::ast::TypeExpr::Primitive(crate::ast::PrimitiveType::Number)
                 ));
                 assert!(matches!(&l.value, Expr::Number(n) if n == "5432"));
             }

@@ -74,22 +74,21 @@ pub struct Field {
 pub enum TypeExpr {
     /// A simple named type, e.g. `MyType`
     Named(String),
-    /// A primitive type, e.g. `u32`, `bool`, `str`
+    /// A primitive type, e.g. `number`, `bool`, `string`
     Primitive(PrimitiveType),
     /// A qualified path, e.g. `spin-core::TcpPort`
     Path { module: String, name: String },
-    /// A generic type, e.g. `Option<u32>`
+    /// A generic type, e.g. `Option<number>`
     Generic { name: String, args: Vec<TypeExpr> },
     /// Self-qualified type, e.g. `Self::Tls`
     SelfPath(String),
-    /// Fixed-size array, e.g. `[u8; 4]`
-    Array { element: Box<TypeExpr>, size: usize },
-    /// Slice (size unknown), e.g. `[u8]`
-    Slice(Box<TypeExpr>),
-    /// Tuple, e.g. `(u32, str)`
-    Tuple(Vec<TypeExpr>),
-    /// Unit type `()`
-    Unit,
+    /// List type: `[T]`
+    List(Box<TypeExpr>),
+    /// HashMap type: `{K: V}`
+    HashMap {
+        key: Box<TypeExpr>,
+        value: Box<TypeExpr>,
+    },
 }
 
 /// A segment of an interpolated string
@@ -149,6 +148,12 @@ pub enum Expr {
     Self_,
     /// `None` literal (sugar for `Option::None`)
     None_,
+    /// Regex literal: `r"pattern"`
+    RegexLit(String),
+    /// List literal: `[1, 2, 3]`
+    ListLit(Vec<Expr>),
+    /// HashMap literal: `{key: value, ...}`
+    HashMapLit(Vec<(Expr, Expr)>),
 }
 
 /// A field initializer: `name: expr`
@@ -186,6 +191,16 @@ pub enum BinaryOp {
     And,
     /// `||`
     Or,
+    /// `=~` regex match
+    RegexMatch,
+    /// `+`
+    Add,
+    /// `-`
+    Sub,
+    /// `*`
+    Mul,
+    /// `/`
+    Div,
 }
 
 /// Unary operators
@@ -243,17 +258,6 @@ pub struct LetBinding {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PrimitiveType {
     Bool,
-    U8,
-    U16,
-    U32,
-    U64,
-    U128,
-    I8,
-    I16,
-    I32,
-    I64,
-    I128,
-    F32,
-    F64,
-    Str,
+    Number,
+    String,
 }

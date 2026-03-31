@@ -4,7 +4,7 @@ use spin_up::spin;
 #[test]
 fn test_spin_macro_type_def() {
     let module = spin! {
-        type Foo = x: u32, y: str;
+        type Foo = x: number, y: string;
     };
     assert_eq!(module.items.len(), 1);
     match &module.items[0] {
@@ -21,8 +21,8 @@ fn test_spin_macro_type_def() {
 #[test]
 fn test_spin_macro_interface_and_impl() {
     let module = spin! {
-        interface Endpoint = host: str, port: u16;
-        type Server = hostname: str, port_num: u16;
+        interface Endpoint = host: string, port: number;
+        type Server = hostname: string, port_num: number;
         impl Endpoint for Server {
             host: self.hostname,
             port: self.port_num,
@@ -46,9 +46,9 @@ fn test_spin_macro_let_binding() {
 #[test]
 fn test_spin_macro_complex() {
     let module = spin! {
-        type Inner = value: str;
+        type Inner = value: string;
         type Server = inner: Inner;
-        interface Endpoint = host: str;
+        interface Endpoint = host: string;
         impl Endpoint for Server {
             host: self.inner.value,
         }
@@ -64,9 +64,9 @@ fn test_spin_macro_complex() {
 #[test]
 fn test_spin_macro_produces_same_result_as_parse() {
     let module_from_macro = spin! {
-        type Foo = x: u32;
+        type Foo = x: number;
     };
-    let module_from_parse = spin_up::parser::parse("type Foo = x: u32;").unwrap();
+    let module_from_parse = spin_up::parser::parse("type Foo = x: number;").unwrap();
 
     // Both should produce a single RecordDef with the same name and fields
     assert_eq!(module_from_macro.items.len(), module_from_parse.items.len());
@@ -86,7 +86,7 @@ fn test_spin_macro_produces_same_result_as_parse() {
 fn test_spin_macro_with_attributes() {
     let module = spin! {
         #[lang-item]
-        type Foo = x: u32;
+        type Foo = x: number;
     };
     match &module.items[0] {
         Item::RecordDef(r) => {
@@ -102,7 +102,7 @@ fn test_spin_macro_with_attributes() {
 fn test_spin_macro_with_attribute_args() {
     let module = spin! {
         #[delegate(PostgresEndpoint)]
-        type Proxy = frontend: str;
+        type Proxy = frontend: string;
     };
     match &module.items[0] {
         Item::RecordDef(r) => {

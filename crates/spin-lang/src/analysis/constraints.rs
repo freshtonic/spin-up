@@ -83,6 +83,13 @@ fn validate_constraint_expr(
             | BinaryOp::NotEq => {
                 validate_comparison_operands(left, right, field, source_name, diags);
             }
+            BinaryOp::RegexMatch
+            | BinaryOp::Add
+            | BinaryOp::Sub
+            | BinaryOp::Mul
+            | BinaryOp::Div => {
+                // Arithmetic and regex ops are valid in constraint position
+            }
         },
         // A bare `it` inside a constraint context is valid on its own
         // (though unusual, it doesn't violate structural validity)
@@ -241,6 +248,11 @@ fn collect_bounds_inner(expr: &Expr, bounds: &mut BoundSet) -> bool {
                 add_bound(bounds, &normalized_op, value);
                 true
             }
+            BinaryOp::RegexMatch
+            | BinaryOp::Add
+            | BinaryOp::Sub
+            | BinaryOp::Mul
+            | BinaryOp::Div => false,
         },
         Expr::It => true,
         _ => false,

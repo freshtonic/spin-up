@@ -86,27 +86,54 @@ fn test_token_spans() {
 
 #[test]
 fn test_lex_primitive_type_keywords() {
-    let input = "bool u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 f32 f64 str";
+    let input = "bool number string";
+    let tokens = lex(input).unwrap();
+    let kinds: Vec<_> = tokens.iter().map(|t| &t.kind).collect();
+    assert_eq!(kinds, &[&Token::Bool, &Token::Number_, &Token::String_,]);
+}
+
+#[test]
+fn test_lex_collection_and_builtin_keywords() {
+    let input = "Set keep drop count sum mean median min max";
     let tokens = lex(input).unwrap();
     let kinds: Vec<_> = tokens.iter().map(|t| &t.kind).collect();
     assert_eq!(
         kinds,
         &[
-            &Token::Bool,
-            &Token::U8,
-            &Token::U16,
-            &Token::U32,
-            &Token::U64,
-            &Token::U128,
-            &Token::I8,
-            &Token::I16,
-            &Token::I32,
-            &Token::I64,
-            &Token::I128,
-            &Token::F32,
-            &Token::F64,
-            &Token::Str,
+            &Token::Set,
+            &Token::Keep,
+            &Token::Drop_,
+            &Token::Count,
+            &Token::Sum,
+            &Token::Mean,
+            &Token::Median,
+            &Token::Min,
+            &Token::Max,
         ]
+    );
+}
+
+#[test]
+fn test_lex_regex_literal() {
+    let tokens = lex(r#"r"hello\d+""#).unwrap();
+    assert_eq!(tokens.len(), 1);
+    assert_eq!(tokens[0].kind, Token::RegexLit(r"hello\d+".to_string()));
+}
+
+#[test]
+fn test_lex_regex_match_operator() {
+    let tokens = lex("=~").unwrap();
+    assert_eq!(tokens.len(), 1);
+    assert_eq!(tokens[0].kind, Token::RegexMatch);
+}
+
+#[test]
+fn test_lex_arithmetic_operators() {
+    let tokens = lex("+ - * /").unwrap();
+    let kinds: Vec<_> = tokens.iter().map(|t| &t.kind).collect();
+    assert_eq!(
+        kinds,
+        &[&Token::Plus, &Token::Minus, &Token::Star, &Token::Slash,]
     );
 }
 
@@ -147,11 +174,10 @@ fn test_lex_underscore_separators() {
 }
 
 #[test]
-fn test_lex_type_suffix() {
-    let tokens = lex("42u32 3.14f64 0xffu8").unwrap();
-    assert_eq!(tokens[0].kind, Token::Number("42u32".to_string()));
-    assert_eq!(tokens[1].kind, Token::Number("3.14f64".to_string()));
-    assert_eq!(tokens[2].kind, Token::Number("0xffu8".to_string()));
+fn test_lex_number_followed_by_ident() {
+    // Type suffixes are no longer supported, so 42u32 is "42" then "u32" (ident)
+    let tokens = lex("42").unwrap();
+    assert_eq!(tokens[0].kind, Token::Number("42".to_string()));
 }
 
 #[test]

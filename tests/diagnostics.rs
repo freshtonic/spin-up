@@ -203,7 +203,7 @@ fn test_into_reports_converts_diagnostics_to_spin_errors() {
     );
 
     let mut sources = HashMap::new();
-    sources.insert("test.spin".to_string(), "type Foo = x: u32;".to_string());
+    sources.insert("test.spin".to_string(), "type Foo = x: number;".to_string());
 
     let reports = diags.into_reports(&sources);
     assert_eq!(reports.len(), 1);
